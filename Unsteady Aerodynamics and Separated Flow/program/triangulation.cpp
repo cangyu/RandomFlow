@@ -1,7 +1,11 @@
 /**
  * Delaunay Triangulation for the estimation of unsteady aerodynamics.
  * The program is based on the CGAL, which is a powerful computational geometry library.
+ * Note that the program is just for purpose of reference! 
+ * If you want to apply it in your work, take care of the trivial settings!
  * 
+ * Author: Cang Yu
+ * Date: 2016-05-28
  */
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Delaunay_triangulation_2.h>
