@@ -169,6 +169,7 @@ int main(int argc, char **argv)
 		throw "Invalid output file path!\n";
 
 	//输入参数
+	cout << "目标函数：f(x)=(x-2.5)^2" << endl;
 	cout << "请输入相关参数：" << endl;
 	cout << "解区间(以空格间开，e.g. -5 5)："; cin >> sectionLeft >> sectionRight;
 	cout << "解的精度(e.g. 0.001 or 1e-3)："; cin >> precision;
@@ -183,6 +184,7 @@ int main(int argc, char **argv)
 	precision = (sectionRight - sectionLeft) / pow(2, chromoLen);
 
 	fout << "当前测试参数如下：" << endl;
+	cout << "目标函数：f(x)=(x-2.5)^2" << endl;
 	fout << "取值区间：[" << sectionLeft << "," << sectionRight << "]" << endl;
 	fout << "圆整后的实际精度：" << precision << endl;
 	fout << "基因串长度：" << chromoLen << endl;
@@ -255,14 +257,15 @@ int main(int argc, char **argv)
 
 		fout << "第" << k << "次迭代：" << endl
 			 << "最优值为：" << grp_cur.back().getRealVal() 
-			 << "，在目标函数作用下的结果为：" << grp_cur.back().getObjVal()
-			 << ",适应度为：" << grp_cur.back().getFitVal() << endl
+			 << " ，在目标函数作用下的结果为：" << grp_cur.back().getObjVal()
+			 << " ,适应度为：" << grp_cur.back().getFitVal() << endl
 			 << "最差值为：" << grp_cur.front().getRealVal()
-			 << "，在目标函数作用下的结果为：" << grp_cur.front().getObjVal()
-			 << ",适应度为：" << grp_cur.front().getFitVal() << endl;
+			 << " ，在目标函数作用下的结果为：" << grp_cur.front().getObjVal()
+			 << " ,适应度为：" << grp_cur.front().getFitVal() << endl;
 	}
 
 	delete[] hasCrossed;
+    fout.close();
 	return 0;
 }
 
