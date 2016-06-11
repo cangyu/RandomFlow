@@ -291,7 +291,7 @@ int main(int argc, char **argv)
 	}
 
 	delete[] hasCrossed;
-    fout.close();
+	fout.close();
 	return 0;
 }
 
