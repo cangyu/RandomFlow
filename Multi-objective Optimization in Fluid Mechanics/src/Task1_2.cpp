@@ -186,7 +186,7 @@ public:
 
 int main(int argc, char **argv)
 {
-	ofstream fout("./results/Test1_2.txt");
+	ofstream fout("../results/Test1_2.txt");
 	if (!fout)
 		throw "Invalid output file path!\n";
 
@@ -219,8 +219,7 @@ int main(int argc, char **argv)
 	fout << "种群规模：" << PopulationSize << endl;
 	fout << "迭代次数：" << GenerationCnt << endl;
 	fout << "交叉概率：" << P_Cross << endl;
-	fout << "变异概率：" << P_Mutate << endl;
-	fout << endl;
+	fout << "变异概率：" << P_Mutate << endl << endl;
 
 	//初始化种群
 	srand(time(NULL));
@@ -228,6 +227,9 @@ int main(int argc, char **argv)
 	for (size_t i = 0; i < PopulationSize; i++)
 		grp_cur.push_back(chromosome(chromoLen1, chromoLen2));
 	sort(grp_cur.begin(), grp_cur.end());
+
+	cout << setw(6) << "Round" << setw(14) << "x1" << setw(14) << "x2" << setw(16) << "F(x1,x2)" << setw(16) << "Fit_Val" << endl;
+	fout << setw(6) << "Round" << setw(14) << "x1" << setw(14) << "x2" << setw(16) << "F(x1,x2)" << setw(16) << "Fit_Val" << endl;
 
 	//迭代进化
 	bool *hasCrossed = new bool[PopulationSize];
@@ -284,10 +286,8 @@ int main(int argc, char **argv)
 
 		grp_cur = grp_next;
 
-		fout << "第" << k << "次迭代：" << endl
-			 << "种群中最优个体为：x1=" << grp_cur.back().x1 << "，x2=" << grp_cur.back().x2
-			 << "，在目标函数作用下的结果为：" << grp_cur.back().getObjVal()
-			 << "，适应度为：" << grp_cur.back().getFitVal() << endl;
+		cout << setw(6) << k << setw(14) << grp_cur.back().x1 << setw(14) << grp_cur.back().x2 << setw(16) << grp_cur.back().getObjVal() << setw(16) << grp_cur.back().getFitVal() << endl;
+		fout << setw(6) << k << setw(14) << grp_cur.back().x1 << setw(14) << grp_cur.back().x2 << setw(16) << grp_cur.back().getObjVal() << setw(16) << grp_cur.back().getFitVal() << endl;
 	}
 
 	delete[] hasCrossed;

@@ -85,16 +85,10 @@ public:
 	}
 
 	/*计算目标函数值*/
-	double calcObj()
-	{
-		return objVal = objFunc(realVal);
-	}
+	double calcObj()	{ return objVal = objFunc(realVal); }
 
 	/*计算适应值*/
-	double calcFit()
-	{
-		return fitVal = -objVal;
-	}
+	double calcFit()	{ return fitVal = -log(objVal+eps); }
 
 	/*重新计算所有值*/
 	void update()
@@ -124,7 +118,7 @@ public:
 			doSwap = true;
 		else
 		{
-			double choice = (rand() % 32749) / 32749.0;
+			double choice = (rand() % 100) / 100.0;
 			doSwap |= choice < probability;
 		}
 
@@ -154,7 +148,7 @@ public:
 			double choice = 0;
 			for (int i = 0; i < gene.length(); i++)
 			{
-				choice = (rand() % 32749) / 32749.0;
+				choice = (rand() % 100) / 100.0;
 				if (choice < probability)
 					gene[i] = total - gene[i];
 			}
@@ -164,7 +158,7 @@ public:
 
 int main(int argc, char **argv)
 {
-	ofstream fout("./results/Test1_1.txt");
+	ofstream fout("../results/Test1_1.txt");
 	if (!fout)
 		throw "Invalid output file path!\n";
 
@@ -177,7 +171,7 @@ int main(int argc, char **argv)
 	cout << "迭代次数(e.g. 50 or 5e1)："; cin >> GenerationCnt;
 	cout << "交叉概率(e.g. 0.65 or 6.5e-1)："; cin >> P_Cross;
 	cout << "变异概率(e.g. 0.001 or 1e-3)："; cin >> P_Mutate;
-	cout << "Calculating..." << endl;
+	cout << "Calculating..." << endl << endl;
 
 	//圆整
 	size_t chromoLen = ceil(log2f((sectionRight - sectionLeft) / precision));
@@ -191,8 +185,7 @@ int main(int argc, char **argv)
 	fout << "种群规模：" << PopulationSize << endl;
 	fout << "迭代次数：" << GenerationCnt << endl;
 	fout << "交叉概率：" << P_Cross << endl;
-	fout << "变异概率：" << P_Mutate << endl;
-	fout << endl;
+	fout << "变异概率：" << P_Mutate << endl << endl;
 
 	//初始化种群
 	srand(time(NULL));
@@ -200,6 +193,9 @@ int main(int argc, char **argv)
 	for (size_t i = 0; i < PopulationSize; i++)
 		grp_cur.push_back(chromosome(chromoLen));
 	sort(grp_cur.begin(), grp_cur.end());
+
+	cout << setw(6) << "Round" << setw(14) << "x" << setw(16) << "F(x)" << setw(16) << "Fit_Val" << endl;
+	fout << setw(6) << "Round" << setw(14) << "x" << setw(16) << "F(x)" << setw(16) << "Fit_Val" << endl;
 
 	//迭代进化
 	bool *hasCrossed = new bool[PopulationSize];
@@ -253,15 +249,11 @@ int main(int argc, char **argv)
 		//Keep the best
 		//swap(grp_next[0], grp_cur[grp_cur.size() - 1]);
 		//sort(grp_next.begin(), grp_next.end());
+
 		grp_cur = grp_next;
 
-		fout << "第" << k << "次迭代：" << endl
-			 << "最优值为：" << grp_cur.back().getRealVal()
-			 << "，在目标函数作用下的结果为：" << grp_cur.back().getObjVal()
-			 << "，适应度为：" << grp_cur.back().getFitVal() << endl;
-			 //<< "最差值为：" << grp_cur.front().getRealVal()
-			 //<< " ，在目标函数作用下的结果为：" << grp_cur.front().getObjVal()
-			 //<< " ,适应度为：" << grp_cur.front().getFitVal() << endl;
+		cout << setw(6) << k << setw(14) << grp_cur.back().getRealVal() << setw(16) << grp_cur.back().getObjVal() << setw(16) << grp_cur.back().getFitVal() << endl;
+		fout << setw(6) << k << setw(14) << grp_cur.back().getRealVal() << setw(16) << grp_cur.back().getObjVal() << setw(16) << grp_cur.back().getFitVal() << endl;
 	}
 
 	delete[] hasCrossed;
