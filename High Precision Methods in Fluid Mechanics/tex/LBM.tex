@@ -1,16 +1,21 @@
 \documentclass[UTF8]{ctexart}
 \usepackage{graphicx}
+\usepackage{subfigure}
 \usepackage{amsmath}
+\usepackage{geometry}
 \usepackage{enumerate}
 \usepackage{cite}
 \usepackage{booktabs}
 \usepackage{listings}
+\usepackage{titletoc}
 
 \lstset{language=C++}
 \lstset{breaklines}%这条命令可以让LaTeX自动将长的代码行换行排版
 \lstset{extendedchars=false}%这一条命令可以解决代码跨页时，章节标题，页眉等汉字不显示的问题
 
-\title{\heiti 《流体力学中的高精度数值方法》 \\ 大作业}
+\geometry{left=2cm,right=2cm,top=2cm,bottom=2cm}
+
+\title{\heiti 《流体力学高精度数值解法》 \\ 大作业}
 \author{SX1501021 仓宇}
 \date{\today}
 
@@ -20,259 +25,314 @@
 \maketitle
 \setcounter{page}{0}
 \thispagestyle{empty}
-
-\clearpage
-
-\begin{abstract}
-本文介绍了用经典遗传算法来求解一些函数优化问题的实验过程，实验主要包括两部分：
-\begin{enumerate}[(1)]
-\item 求解一元函数、二元函数在给定区间上的最小值。
-\item 利用Nash均衡求二元函数在给定区间上的最小值。
-\end{enumerate}
-\end{abstract}
-
 \clearpage
 
 \tableofcontents
+\clearpage
+
+\section{问题描述}
+使用基于Taylor级数展开与最小二乘法的格子玻尔兹曼方法(TLLBM,Taylor series expansion and Least square based Lattice Boltzmann Method)来模拟二维圆柱绕流问题。要求如下：
+\begin{itemize}
+\item 分别考察雷诺数$Re=20,40,100,400$时的流场；
+\item 比较不同精细程度的网格对数值解的影响；
+\item 给出速度残差或密度残差随时间的变化；
+\item 给出升力系数$C_L$与阻力系数$C_D$随时间的变化；
+\item 给出流线图和涡量等值线图。
+\end{itemize}
+
+\section{TLLBM方法概述}
+本文以D2Q9模型为例，特殊声明除外。
+\subsection{LBM概述}
+\indent 在LBM中，任一节点在给定方向上的的密度平衡分布$f_i$由两部分组成：平衡部分与非平衡部分，即：
+\begin{equation}
+f_i=f_i^{(eq)}+f_i^{(neq)} 
+\end{equation}
+\indent 每个节点上的物理量(如$\rho,u,v$)由该节点上各个方向的密度分布$f_i$共同决定，即：
+\begin{equation}
+ \rho= \sum_{i=0}^{Q-1}f_i 
+\end{equation}
+\begin{equation} 
+u= \frac{1}{\rho}\sum_{i=0}^{Q-1}{f_i cx_i} 
+\end{equation}
+\begin{equation} 
+v= \frac{1}{\rho}\sum_{i=0}^{Q-1}{f_i cy_i}
+\end{equation}
+\indent 上式中$cx_i,cy_i$由具体模型给定。\\
+\indent 反过来，每点上的物理量又决定了该点上各个方向密度分布中的平衡部分，即：
+\begin{equation} 
+f_i^{(eq)} = F(\rho,u,v)
+\end{equation}
+\indent 上式中的F由所采用的计算模型决定。\\
+\indent 因此，节点上各个方向的密度分布$f_i$与节点上的物理量(如$\rho,u,v$)形成一种等价关系。\\
+\indent 从上面公式可以看出一些有趣的想法：LBM认为在任意一点上的密度并不沿着周向连续均匀分布，相反，它认为密度的分布是间断的，是按照一定的比例集中地分布在若干个给定的方向上。进一步，对于速度分量来说，各个方向上的密度分布$f_i$起到类似权重的效果。\\
+\indent LBM的想法基于Boltzmann方程，也就是每点在下一时间步的密度分布$f_i(t+dt)$由当前不稳定的那部分$f_i^{(neq)}(t)$引起的碰撞和对流导致。碰撞的具体形式是每个LBM模型的核心所在。碰撞后粒子还要做对流运动，从而迁移到下一个位置，在LBGK中，描述粒子碰撞与迁移的函数如下：
+\begin{equation} 
+ f_i(P^\prime,t+dt)=f_i(P,t)-\frac{1}{\tau}[f_i(P,t)-f_i^{(eq)}(P,t)] 
+\end{equation}
+\indent 这样，我们便建立了对LBM的基本认识。
+
+\subsection{理解TLLBM}
+简单地说，TLLBM是一种基于LBM的时间推进方法，在给定初始条件和边界条件后逐次推进时间步，从而模拟了全流场的演变。TLLBM不同于传统方法的地方在于它为了得到网格点在下一时间步上的状态量而使用的方法。\\
+\indent 在TLLBM中，已知t时刻的所有节点的密度分布，为了求P点在$t+dt$时刻的密度分布，TLLBM首先用标准的LBM方法求得周围9个点在$t+dt$时刻的密度分布，然后再用这9个点在$t+dt$时刻的密度分布来近似估计P点在$t+dt$时刻的密度分布，从而完成了时间步的推进。\\
+\indent 需要注意的是标准的LBM方法求得的在$t+dt$时刻的密度分布是\emph{迁移后}的节点在新的位置上的分布，而不是原始点在t+dt时刻的密度分布,这也是引入Taylor级数展开和最小二乘法的原因。下面将详细阐释TLLBM做近似估计的原理。\\
+\indent 首先，通过标准的LBM得到P点周围9点碰撞迁移后的密度分布，如下所示：
+\begin{figure}[htbp]
+\centering\includegraphics[width=5.5cm,height=4.5cm]{../pic/9pts.png}
+\caption{粒子迁移示意图}
+\end{figure}\\
+\indent 注意这一步的操作包含了节点的所有方向，图中只是沿着一个方向的迁移示意。\\
+\indent 记第k个节点沿i方向经过碰撞、迁移得到的中间点在t+dt时刻的密度为$g_{i:k}$,则有：
+\begin{equation} 
+g_{i:k}= f_i(P_k^\prime,t+dt)=f_i(P_k,t)-\frac{1}{\tau}[f_i(P_k,t)-f_i^{(eq)}(P_k,t)] \ \ \  k=0...8
+\end{equation}
+\indent 为了求$f_i(P,t+dt)$,我们想办法用这9个点来估计P点在t+dt时刻的密度分布。将上述9点在P点做Taylor展开，保留到二阶，得到的结果如下：
+\begin{equation}
+\begin{split}
+&f_i(P_k^\prime,t+dt)=f_i(P,t+dt)+\Delta x_{P_k} \frac{\partial f_i(P,t+dt)}{\partial x} +\Delta y_{P_k} \frac{\partial f_i(P,t+dt)}{\partial y}\\
+&\qquad \qquad \qquad + \frac{1}{2} {\Delta x_{P_k}}^2 \frac{\partial^{2} f_i(P,t+dt)}{\partial x^{2}}+\frac{1}{2} {\Delta y_{P_k}}^2 \frac{\partial^{2} f_i(P,t+dt)}{\partial y^{2}} \\
+&\qquad \qquad \qquad + \Delta x_{P_k} \Delta y_{P_k} \frac{\partial^{2} f_i(P,t+dt)}{{\partial x} {\partial y}}
+\end{split}
+\end{equation}
+\indent 其中$\Delta x_{P_k}=x_{P_k}+cx_i dt - x_P$,$\Delta y_{P_k}=y_{P_k}+cy_i dt - y_P$,即中间点$P_k^\prime$与P点的距离。\\
+\indent 对于每一个点的泰勒展开，上式中$f_i(P,t+dt), \frac{\partial f_i(P,t+dt)}{\partial x}, \frac{\partial f_i(P,t+dt)}{\partial y}, \frac{\partial^{2} f_i(P,t+dt)}{\partial x^{2}}, \frac{\partial^{2} f_i(P,t+dt)}{\partial y^{2}}, \frac{\partial^{2} f_i(P,t+dt)}{{\partial x} {\partial y}}$这6个量均为未知量，而$\Delta x_{P_k}, \Delta y_{P_k}$均是已知的，因此我们有9个方程，6个未知量。写成矩阵的形式如下：
+\begin{equation}
+{\begin{pmatrix}
+1 & \Delta x_{P_0} & \Delta y_{P_0} & \frac{1}{2} {\Delta x_{P_0}}^2 & \frac{1}{2} {\Delta y_{P_0}}^2 & \Delta x_{P_0} \Delta y_{P_0} \\
+1 & \Delta x_{P_1} & \Delta y_{P_1} & \frac{1}{2} {\Delta x_{P_1}}^2 & \frac{1}{2} {\Delta y_{P_1}}^2 & \Delta x_{P_1} \Delta y_{P_1} \\
+1 & \Delta x_{P_2} & \Delta y_{P_2} & \frac{1}{2} {\Delta x_{P_2}}^2 & \frac{1}{2} {\Delta y_{P_2}}^2 & \Delta x_{P_2} \Delta y_{P_2} \\
+1 & \Delta x_{P_3} & \Delta y_{P_3} & \frac{1}{2} {\Delta x_{P_3}}^2 & \frac{1}{2} {\Delta y_{P_3}}^2 & \Delta x_{P_3} \Delta y_{P_3} \\
+1 & \Delta x_{P_4} & \Delta y_{P_4} & \frac{1}{2} {\Delta x_{P_4}}^2 & \frac{1}{2} {\Delta y_{P_4}}^2 & \Delta x_{P_4} \Delta y_{P_4} \\
+1 & \Delta x_{P_5} & \Delta y_{P_5} & \frac{1}{2} {\Delta x_{P_5}}^2 & \frac{1}{2} {\Delta y_{P_5}}^2 & \Delta x_{P_5} \Delta y_{P_5} \\
+1 & \Delta x_{P_6} & \Delta y_{P_6} & \frac{1}{2} {\Delta x_{P_6}}^2 & \frac{1}{2} {\Delta y_{P_6}}^2 & \Delta x_{P_6} \Delta y_{P_6} \\
+1 & \Delta x_{P_7} & \Delta y_{P_7} & \frac{1}{2} {\Delta x_{P_7}}^2 & \frac{1}{2} {\Delta y_{P_7}}^2 & \Delta x_{P_7} \Delta y_{P_7} \\
+1 & \Delta x_{P_8} & \Delta y_{P_8} & \frac{1}{2} {\Delta x_{P_8}}^2 & \frac{1}{2} {\Delta y_{P_8}}^2 & \Delta x_{P_8} \Delta y_{P_8}
+\end{pmatrix}}
+{\begin{pmatrix}
+f_i(P,t+dt) \\
+\frac{\partial f_i(P,t+dt)}{\partial x} \\
+\frac{\partial f_i(P,t+dt)}{\partial y} \\
+\frac{\partial^{2} f_i(P,t+dt)}{\partial x^{2}} \\
+\frac{\partial^{2} f_i(P,t+dt)}{\partial y^{2}} \\
+\frac{\partial^{2} f_i(P,t+dt)}{{\partial x} {\partial y}}
+\end{pmatrix}}
+={\begin{pmatrix}
+f_i(P_0^\prime,t+dt) \\
+f_i(P_1^\prime,t+dt) \\
+f_i(P_2^\prime,t+dt) \\ 
+f_i(P_3^\prime,t+dt) \\ 
+f_i(P_4^\prime,t+dt) \\ 
+f_i(P_5^\prime,t+dt) \\
+f_i(P_6^\prime,t+dt) \\
+f_i(P_7^\prime,t+dt) \\
+f_i(P_8^\prime,t+dt)
+\end{pmatrix}}
+\end{equation}
+\indent 将这3个矩阵从左到右依次记为$[S_i],\{V_i\},\{g_i\}$。显然这个矩阵方程无解，为了求得近似解，我们采用最小二乘的方法求得$\{V_i\}$的近似解，结果如下：
+\begin{equation}
+\{V_i\}=({[S_i]}^ \mathrm{T} {[S_i]})^{-1} {[S_i]}^ \mathrm{T} \{g_i\} = [A_i] \{g_i\}
+\end{equation}
+\indent 至此，我们便求得i方向上P点在t+dt时刻的密度$f_i(P,t+dt)$，其它方向以此类推即可。\\
+\indent 需要注意的是由于P点0方向速度为0，所以P点在0方向上没有迁移，因此P点在0方向上$t+dt$时刻的密度可由标准LBM直接得到，无需做Taylor展开来近似估算。
 
 \clearpage
 
-\section{遗传算法介绍}
-遗传算法（Genetic Algorithms，GA）是一种模拟自然选择和遗传机制的寻优方法， 它建立在达尔文的生物进化论和孟德尔的遗传学说基础上。基因杂交和基因突变可能产生对环境适应性更强的后代，通过优胜劣汰的自然选择，适应值高的基因结构就保存下来。遗传算法就是模仿了生物的遗传、进化原理，并引用了随机统计原理而形成的。\\
-\indent 1975年，Holland教授出版了《自然与人工系统中的适应性行为》。该书系统地阐述了遗传算法的基本理论和方法，提出了遗传算法的基本定理-模式定理，从而奠定了遗传算法的理论基础。\\
-\indent 简单地说，遗传算法是一种“面向输出编程”的算法。对于给定的问题，遗传算法通过一串能描述该问题解空间的“基因”来刻画该问题的结果。如何表达这串“基因”、如何操作这串“基因”以及如何评估这串“基因”构成了各种不同的遗传算法，也是理解和设计遗传算法的基本出发点。\\
+\section{问题分析}
+\subsection{网格选取}
+求解的一个关键在于网格，虽然上述分析中并未详细说明所采用的是结构网格还是非结构网格，但实际上LBM采用的网格就是真实物理空间上的网格，并不存在从计算域到真实物理空间的转换。结构网格与非结构网格均适用。本文采用贴体非结构网格，如下所示：
+\begin{figure}[htbp]\centering
+\includegraphics[width=5cm]{../pic/mesh.jpg}
+\includegraphics[width=5cm]{../pic/mesh_local.PNG}
+\caption{圆柱贴体网格}
+\end{figure}
 
-\subsection{“基因”的表达}
-通常地，我们采用由若干个0、1字符组成的串来表示一个基因，串的长度体现了该基因包含的信息量和精确度。\\
-\indent 在遗传算法中，把一个问题的可行解从其解空间转换到遗传算法所能处理的搜索空间叫做编码(Encode)，反之，由遗传算法解空间向问题空间的转换叫做译码(Decode)。编码与译码为一组互逆操作，只需了解一个即可。\\
-\indent 在确定如何表达一个“基因”后便需要来进一步理解这个“基因”所包含的信息了。简单起见，我们认为一个基因中只包含一个实际变量的信息。通常做法是先将这一0、1字符串转换为对应的十进制整数，再将这一整数映射到问题空间，即可得到该“基因”所表达的实际意义。\\
-\indent 在上述做法中，我们首先遇到的一个问题是如何将这一0、1字符串转换为相对应的十进制整数？一种方法是将这一0、1字符串看做是一个十进制整数的二进制表示，这种方法清晰明了，便于理解，但是二进制编码方法的一个缺点是海明悬崖(Hamming Cliff)，就是在某些相邻整数的二进制表示之间有很大的海明距离，这不利于遗传算法的全局搜索操作。为克服此问题又提出了格雷码(Gray Code)，这一编码方法使得相邻整数之间的距离海明距离都为1。然而海明距离在整数间的差并非单调递增，这又引入了另一层次的隐式悬崖。\\
-\indent 采用上述任一编码方法得到相应的十进制整数后,将这一整数映射到问题空间的函数由算法设计者决定，通常该转换函数是双射的，且映射结果在解空间均匀分布，在此不做赘叙。
+\subsection{初始条件与边界条件}
+\indent 求解的另一关键点在于初始条件与边界条件。对于远场，我们认为最外层网格上的物理量不随时间变化，因此在迭代的过程中并不计算或更新最外层的网格，而是始终保持其上的物理量不变。\\
+\indent 对于物面，由于存在粘性，物面上的速度必然为始终0，这需要我们在迭代的过程中始终保持速度为0不变。物面除的密度是可变的，反应了压强的变化，因此不作手工修正。\\
+\indent 由于我们对每个点的计算采用了其周围9个点的信息，对于物面上的点来说并不存在这样的9点，因此，我们还要再物面内部虚拟放置一层网格，记这层虚拟的网格的层号为0，物面网格的层号为1，这层虚拟的网格是由第2层网格关于物面镜像得到，也就是说我们用第2层网格上的密度分布来代替第0层上的密度分布，从而使得物面上的计算可以归一化处理。因此在每次迭代初始，要用第2层网格的信息来更新第0层网格的信息。\\
+\indent 初始时，设包括虚拟层0在内共有N层网格，为了便于计算设1--N-1层网格上的密度均为1，设2--N-1层网格上的速度均为水平向右，且大小相同，具体大小由测试马赫数Ma给定。\\
+\indent 设定好初始条件与边界条件后便可开始迭代计算。迭代过程中需要注意的是要遍历所有方向，并且需要注意的是要将流场中全部节点在t+dt时刻的密度分布都求出来后才可以用$f(t+dt)$来代替$f(t)$，不能一边计算，一边迭代。
 
-\subsection{对“基因”的操作}
-在得到表示实际变量的基因表示后，接着要做的就是模拟自然过程，对基因做进化、选择操作来得到更优的解。\\
-\indent 经典遗传算法的操作主要有3个：选择(Select)、交叉(Cross)和变异(Mutate)。选择操作符体现了“物竞天择、适者生存”的自然选择思想，交叉与变异体现了物种的进化过程。\\
-\indent 从遗传算法的实现角度来说，3个操作符的内涵如下：
-\begin{enumerate}[(1)]
-\item 选择：按照给定的选择策略，在当前种群中选出一定数量的个体进入到下一代演变，未被选择的个体则被丢弃。
-\item 交叉：两个基因按照预设的策略彼此交换一部分基因串，从而产生新的子代个体。
-\item 变异：一个基因在演变进化的过程中所发生的变化不仅仅由交叉构成，也包含了自身的突，但这一变化的概率通常较小。
-\end{enumerate}
+\subsection{迭代}
+首先，物面的网格比较特殊，需要镜像虚拟一层网格才能使用TLLBM。\\
+其次，对每点的迭代需要依次更新该点的\emph{所有方向}上的密度，不要漏掉或搞错次序。0方向在这里又是一个比较特殊的情况，由于该方向的速度为0，不会发生迁移，因此做LBM后得到的结果就是该点在t+dt时刻在该方向上的密度。而剩下的1--8方向则需要先对周围9点先做LBM，然后在按前述方法进行插值估计，从而得到该点在t+dt时刻在该方向上的密度。
 
-\subsection{对“基因”的评估}
-选择操作根据一个基因的适应值来评定该基因对环境的适应能力。基因的适应值往往不等同于在给定目标函数下的目标值。为了能够更客观地评估一个基因的适应性，常常需要仔细设计适应度函数，来获得较为均匀的适应值分布。\\
-\indent 通常，在求取最小值时常将适应值设为目标值的相反数，这是一种最简单的适应度函数，也可将该适应值设为目标值的倒数。适应度函数的选取应是“面向数据”的，即根据输入数据的分布情况来确定具体的适应度函数。
+\clearpage
 
-\subsection{模式定理与积木块假设}
-模式定理和积木块假设是遗传算法有效性的理论依据。模式定理保证了较优的模式的样本呈指数级增长，从而满足了寻找最优解的必要条件，即遗传算法存在着找到全局最优解的可能性。\\
-\indent 另一方面，积木块假设指出，遗传算法具备寻找到全局最优解的能力，即具有低阶、短距、高平均适应度的模式(积木块)在遗传算子的作用下，相互结合，能生成高阶、长距、高平均适应度的模式，最终生成全局最优解。\\
-\indent 详细证明可参见相关教材，在此不作赘叙。
-
-\section{求一元函数最小值点}
-
-\subsection{问题描述}
-考虑如下优化问题：
-\[
-	\min_x F(x) = (x-2.5)^2 \indent -5.0 \leq x \leq 5.0 
-\]
-
-\subsection{问题分析}
-这是一个简单的一元二次函数，理论上，函数取得其全局最优解0。\\
-\indent 该函数在给定区间上的图像如下：
-
-\indent 对于该问题，只要生成较为均匀的初始种群，经过若干代进化后则可以收敛到最小值点。\\
-\indent 由于要找到最小值点，适应度函数应是关于目标值的减函数，本例中采用如下形式的适应度函数：
-\[
-	fitVal=-ln(objVal+eps) \indent eps=1e-12
-\]
-
-\indent 在目标值后加上一个小量是为了避免在0点处超出定义域。\\
-\indent 由于问题较简单，因此不采用“精英”策略，即不保留当前种群中适应度最高的个体到下一代。\\
-
-\subsection{编程实现}
-本实验用C++实现，采用“面向对象”的方法，将“染色体”抽象为一个类，该类中包含了描述该条染色体信息的一些数据成员，并封装了交叉、变异操作。\\
-\indent 主函数中的流程如下：
-\begin{enumerate}[(a)]
-\item 提示操作者输入相关参数，如种群规模、迭代次数、交叉概率、变异概率等。
-\item 根据输入参数生成初始种群，并计算种群中每个个体的目标值与适应值。
-\item 根据输入参数进行迭代，并在每一次迭代结束时输出当前结果。
-\end{enumerate}
-\indent 本实验的选择算子采用锦标赛选择法，每次有放回地随机选2个个体，然后取适应值高的个体复制到下一代留作进一步进化操作。虽然赌轮选择是较为常用的一种选择方法，但是其误差较大，因此本实验不采用。\\
-\indent 交叉算子和变异算子封装在每个染色体对象中。交叉操作采用单点交叉的方式，每次随机选择一个交叉点，再根据给定的交叉概率(P\_Cross)决定是否执行交叉运算。\\
-\indent 变异操作较简单，算子在遍历基因串的每一位时取一个随机概率，若该随机概率小于设定的变异概率(P\_Mutate)则反转(Flip)该位，否则保持不变。
-
-\subsection{运行结果与分析}
-本实验的参数取值如下：
-\begin{center}
-\begin{tabular}{cc}
-  \toprule
-  参数 & 值 \\
-  \midrule
-  基因串长度 & 24 \\
-  自变量精度 & 5.96046e-007\\
-  种群规模   & 200 \\
-  迭代次数   & 50 \\
-  交叉概率   & 0.65 \\
-  变异概率   & 0.001 \\
-  \bottomrule
-\end{tabular}
-\end{center}
-得到的结果如下图所示：
-\begin{center}
-\end{center}
-
-\indent 从实验结果可知对于简单的一元函数，遗传算法在给定区间上能够较快地收敛到极值点，没有早熟或振荡现象，效果较好。
-
-\section{求二元函数最小值点}
-
-\subsection{问题描述}
-考虑如下优化问题：
-\[
-	\min_{x_1,x_2} F(x_1,x_2) = (x_1-1.5)^4+(x_2+1.5)^2 \indent -3.0 \leq x_i \leq 3.0,i=1,2 
-\]
-
-\subsection{问题分析}
-这是一个二元函数，理论上，函数取得其全局最优解0。\\
-\indent 该函数在给定区间上的图像如下：
-
-\indent 由于目标函数中有两个变量，因此情况较上一例略复杂，但原理相同，均是先生成较为均匀的初始种群，再经过若干代进化后收敛到最小值点。\\
-\indent 虽然有两个变量，但是仍可以在一个基因串中表示，本实验的处理方法是用基因串的前半截表示第一个变量，用后半截表示另一个变量。\\
-\indent 由于要找到最小值点，适应度函数应是关于目标值的减函数，本例中采用如下形式的适应度函数：
-\[
-	fitVal=-objVal
-\]
-
-\indent 由于在实验中未发现明显得发散现象，因此仍然不采用“精英”策略。
-
-\subsection{编程实现}
-
-本实验中对染色体的抽象和上例类似，同样采用“面向对象的方法”将“染色体”抽象为一个类，该类中包含了描述该条染色体信息的一些数据成员，并封装了交叉、变异操作。\\
-\indent 不同于上例的是由于本例要处理两个变量，因此“染色体”类中还新加入了表示变量基因串长度的数据成员，并对构造函数、目标值函数和适应值值函数做了相应的修改。\\
-\indent 主函数中的流程如下：
-\begin{enumerate}[(a)]
-\item 提示操作者输入相关参数，如自变量区间、自变量精度、种群规模、迭代次数、交叉概率、变异概率等。
-\item 根据输入参数生成初始种群，并计算种群中每个个体的目标值与适应值。
-\item 根据输入参数进行迭代，并在每一次迭代结束时输出当前结果。
-\end{enumerate}
-3个遗传算子的具体实现：\\
-\indent 选择算子采用锦标赛选择法(Tournament)，每次有放回地随机选2个个体，然后取适应值高的个体复制到下一代留作进一步进化操作。
-\indent 交叉算子和变异算子封装在每个染色体对象中。交叉操作采用单点交叉的方式，每次随机选择一个交叉点，再根据给定的交叉概率(P\_Cross)决定是否执行交叉运算。\\
-\indent 变异操作较简单，算子在遍历基因串的每一位时取一个随机概率，若该随机概率小于设定的变异概率(P\_Mutate)则反转(Flip)该位，否则保持不变。
-
-\subsection{运行结果与分析}
-\indent 本实验的参数取值如下：
-\begin{center}
-\begin{tabular}{cc}
-  \toprule
-  参数 & 值 \\
-  \midrule
-  基因串长度 & 26 \\
-  自变量$x_1$精度 & 0.000732422\\
-  自变量$x_2$精度 & 0.000732422\\
-  种群规模   & 200 \\
-  迭代次数   & 50 \\
-  交叉概率   & 0.65 \\
-  变异概率   & 0.001 \\
-  \bottomrule
-\end{tabular}
-\end{center}
-得到的结果如下图所示：
-\begin{center}
-\end{center}
-
-\indent 从实验结果可知,对于简单的二元函数，遗传算法在给定区间上也能够较快地收敛到极值点，没有早熟或振荡现象，效果较好。
-
-\section{Nash GA求二元函数最小值点}
-
-\subsection{问题描述}
-Nash GA for minimization of $F(x,y)$ with 2 players:
-\[ Player1=\min_x F(x,\overline{y})={\overline{y}}^2 (x-1)^2+(x \overline{y}-2)^4 \indent -4.0 \leq x \leq 4.0 \\ \]
-\[ Player2=\min_y F(\overline{x},y)=y^2 (\overline{x}-1)^2+(\overline{x}y-2)^4 \indent -4.0 \leq y \leq 4.0 \\ \]
-
-\subsection{问题分析}
-这是一个二元函数，理论上，函数取得其全局最优解0。\\
-\indent 该函数在给定区间上的图像如下：\\
-
-\indent 该优化问题的处理方式和上一例处理二元函数的方法不同，Nash GA的做法是在每个迭代步中将2个变量分别交给2个Player来优化，每个Player根据对方的值来优化自己的值，最终达到所谓的Nash 均衡。而不是像上例中在一个迭代步中用1个GA同时优化2个变量。\\
-\indent 算法的运行示意图如下：
-\begin{center}
-\includegraphics[width=14cm,height=10cm]{../pic/T2_illus.png}
-\end{center}
-\indent 因此，该问题的解决思路是先从一个给定的初始值开始，然后针对每个变量分别运行一次针对一元函数的遗传优化算法，对每个变量都优化过后再将结果汇总，带入到下一个迭代步中。当达到指定的迭代次数后停止并输出。\\
-
-\subsection{编程实现}
-本例采用单线程算法，便于同步输出。\\
-为了便于调用，本例中将针对一元函数的遗传优化算法封装到一个函数中，这样在主函数中直接传入参数并调用即可。\\
-另一个不同于前面两个程序的地方是自变量的管理，从可扩展性考虑，Nash GA算法可以用于多变量，因此求目标值的函数所接收的变量形式改为$std::vector<double>$,同时也便于动态增减元素，目标函数在染色体对象被构造时以函数指针的形式传入其中，如下所示：
+\section{编程实现}
+\subsection{优化加速}
+为了加速计算，可以采用\emph{空间换时间}的策略：由于在整个迭代过程中每个点的xy坐标不变，节点迁移的速度是给定的，迁移的时间步长也是不变的，因此可以预先将每个网格节点在1--8方向上的矩阵$\{S_i\}$都求出来，进而可以求出矩阵$[A_i]$，由于计算$f_i(P,t+dt)$只用到了矩阵$[A_i]$的第一行，所以记下每个节点1--8方向上的A矩阵的第一行的9个元素即可。\\
+\indent 进一步地，还可以预先存下每个点周围8个点的序号，以便加速存取数据，由于本算例的网格点最多不超过$10^5$,这一优化相对来说性价比不高，因此本文并未做次优化，但是若在工程中使用该方法，这一优化是值得的。\\
+\indent 矩阵求逆等运算可以直接用外部库，本算例用的是基于C++的Eigen3，接口灵活方便且实现的效率高！预处理过程中对于每一点在每个方向上的矩阵$[A_i]$，只需如下一行语句即可：
 \begin{lstlisting}
-/*Definition of the pointer to object function*/
-typedef double(*ObjFuncPtr)(const vector<double> &);
-
-/*constructor for chromosome*/
-chromosome(const ObjFuncPtr &_f, 
-	  const vector<double> &_var, 
-	  size_t _self, size_t _len);
-\end{lstlisting}
-同时在染色体对象内部也用$std::vector<double>$来存储自变量，这样便统一了接口。\\
-\indent 主函数的执行流程如下：
-\begin{lstlisting}
-/*Let user specify the arguments*/
-Input();
-
-/*Iteration*/
-for(size_t i=0;i<RoundCnt;i++)
-{
-	for(size_t k=0;k<varCnt;k++)
-	{
-		GA_Solver(F,local_var[k],k);
-
-		/*Output current optimial*/
-		OutPut();
-	}
-}
-\end{lstlisting}
-\indent 其中$GA_Solver$的定义如下：
-\begin{lstlisting}
-/*Definition of GA_Solver*/
-void GA_Solver(ObjFuncPtr func, vector<double> &var, size_t self);
+auto curA = ((S.transpose()*S).inverse()*S.transpose()).eval();
 \end{lstlisting}
 
-\subsection{运行结果与分析}
-\indent 本实验的参数取值如下：
-\begin{center}
-\begin{tabular}{cc}
-  \toprule
-  参数 & 值 \\
-  \midrule
-  基因串长度 & 26 \\
-  自变量$x_1$精度 & 0.000732422\\
-  自变量$x_2$精度 & 0.000732422\\
-  种群规模   & 200 \\
-  迭代次数   & 50 \\
-  交叉概率   & 0.65 \\
-  变异概率   & 0.001 \\
-  \bottomrule
-\end{tabular}
-\end{center}
-得到的结果如下图所示：
-\begin{center}
-\end{center}
+\subsection{程序流程}
+结合上一节的讨论，程序的流程如下：
+\begin{figure}[htbp]\centering
+\includegraphics[height=12cm,width=11cm]{../pic/flowchart.jpg}
+\caption{程序流程图}
+\end{figure}
+\clearpage
 
-\indent 从实验结果可知,虽然给定的初始值是在一个局部最优的位置，但是Nash GA仍然能够将搜索范围拓展到全局并进而找到全局最优解$x=1,y=2$，虽然收敛的速度比起前两例
-慢了一些，但这揭示了一种多目标优化的方法，且利用Nash均衡处理得到的解空间具有一定的性质，同时具有理论和实践上的意义！
+\section{结果分析}
+给出Re=20,40,100,200时的流线图、涡量云图、残差收敛曲线、气动力系数。并进一步探究网格精细程度对数值结果的影响。
+\subsection{Re=20}
+从下面4幅图可见在Re=20时，圆柱背风区产生两个较小的涡，但并未脱离，流场上下对称，速度残差与密度残差均随时间步的推进而逐渐减小，最终取余平缓，升力系数保持为0。
+\begin{figure}[htbp]\centering
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Streamline_20.JPG}
+\caption{Re=20 \ 流线图}
+\end{minipage}
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Vorticity_20.JPG}
+\caption{Re=20 \ 涡量云图}
+\end{minipage}
 
-\section{程序运行说明}
-本实验采用的开发环境是Visual\ Studio\ 2013，源码也可以在Linux或Mac上编译运行。\\
-\indent 在Windows平台下使用时只需运行Release目录下相应的exe文件即可。由于输出文件的路径在源码中是固定的，请保持文件结构，勿将exe文件移出Release文件夹或修改其它文件夹\\
-\indent 由于程序中大量使用了STL中的容器类、泛型算法以及一些C++11中的语言特性，请确保编译器支持C++11。\\
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Residue_20.png}
+\caption{Re=20 \ 残差图}
+\end{minipage}
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Aerodynamics_20.png}
+\caption{Re=20 \ 气动力系数}
+\end{minipage}
+\end{figure}
+\clearpage
+
+\subsection{Re=40}
+从下面4幅图可见在Re=40时，圆柱背风区产生两个涡，虽然尚未脱离，但从涡量云图上可以看出随着Re的增大，圆柱后面的涡被拉长了，流场上下对称，速度残差与密度残差均随时间步的推进而逐渐减小，最终取余平缓，升力系数保持为0。
+\begin{figure}[htbp]\centering
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Streamline_40.JPG}
+\caption{Re=40 \ 流线图}
+\end{minipage}
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Vorticity_40.JPG}
+\caption{Re=40 \ 涡量云图}
+\end{minipage}
+
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Residue_40.png}
+\caption{Re=40 \ 残差图}
+\end{minipage}
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Aerodynamics_40.png}
+\caption{Re=40 \ 气动力系数}
+\end{minipage}
+\end{figure}
+\clearpage
+
+\subsection{Re=100}
+从下面4幅图可见在Re=100时，圆柱背风区的两个涡被进一步拉长，流场上下对称，速度残差与密度残差均随时间步的推进而逐渐减小，虽然略有抖动，但最终趋于平缓，升力系数保持为0。
+\begin{figure}[htbp]\centering
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Streamline_100.JPG}
+\caption{Re=100 \ 流线图}
+\end{minipage}
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Vorticity_100.JPG}
+\caption{Re=100 \ 涡量云图}
+\end{minipage}
+
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Residue_100.png}
+\caption{Re=100 \ 残差图}
+\end{minipage}
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Aerodynamics_100.png}
+\caption{Re=100 \ 气动力系数}
+\end{minipage}
+\end{figure}
+\clearpage
+
+\subsection{Re=200}
+从下面4幅图可见在Re=200时，圆柱背风区的两个大涡已经脱落，并在背风区又产生了两个小的涡，流场上下对称，速度残差与密度残差均随时间步的推进而逐渐减小，最终取余平缓，升力系数保持为0。
+\begin{figure}[htbp]\centering
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Streamline_200.JPG}
+\caption{Re=200 \ 流线图}
+\end{minipage}
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Vorticity_200.JPG}
+\caption{Re=200 \ 涡量云图}
+\end{minipage}
+
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Residue_200.png}
+\caption{Re=200 \ 残差图}
+\end{minipage}
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Aerodynamics_200.png}
+\caption{Re=200 \ 气动力系数}
+\end{minipage}
+\end{figure}
+\clearpage
+
+\subsection{网格对数值结果的影响}
+上述结果采用的网格均相同，设远场距离为50倍的半径长，从物面到远场使用了240层网格，每层网格上有180个节点均匀分布，径向的240层网格并非均匀分布，以1.2为系数做了拉伸变换。作为对比，我们考察在Re=200时，将径向网格数量减少50\%，周向网格密度保持不变的情况下的数值结果，流场、涡量、残差、气动力系数如下：
+\begin{figure}[htbp]\centering
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Streamline_Contrast.JPG}
+\caption{Re=200 \ 流线图}
+\end{minipage}
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Vorticity_Contrast.JPG}
+\caption{Re=200 \ 涡量云图}
+\end{minipage}
+
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Residue_Contrast.png}
+\caption{Re=200 \ 残差图}
+\end{minipage}
+\begin{minipage}{7cm}
+\includegraphics[height=7cm,width=7cm]{../pic/Aerodynamics_Contrast.png}
+\caption{Re=200 \ 气动力系数}
+\end{minipage}
+\end{figure}\\
+\indent 从上述4图可见，将网格变得粗糙些对最终结果影响不大，流场的特性仍然相同，但是残差的稳定性有细微变化，粗糙的网格使得残差更容易产生低频的波动。
+\clearpage
 
 \section{总结}
-本实验探究了遗传算法在函数优化中的应用，先用经典的遗传算法分别考察了针对一元函数和二元函数的优化问题，发现遗传算法能够较快地收敛到最优点，且没有早熟或振荡现象。\\
-\indent 同时还探究了Nash GA，并用其处理了一个二元函数的优化问题，结果表明Nash GA同样能够获得相当好的收敛速度和精度，虽然在搜索方式上不同于经典的遗传算法，但是Nash GA同样具有全局搜索的能力，且搜索更具针对性，这为多目标优化问题提供了一种不一样的思路。
-
-\clearpage
-
-\addcontentsline{toc}{section}{参考文献}
-\bibliography{ga}
+本文探究了使用TLLBM来模拟二维圆柱绕流的流场，编程实现了基于LBGK-D2Q9模型的TLLBM算法，使用贴体网格模拟了在Re=20,40,100,200这4种情况下的流场，数值仿真结果与实验数据吻合较好，表明TLLBM做为一种从介观角度发展而来的方法具有良好效果。\\
+\indent 由于初次接触这种介观方法，本文对阻力系数的计算并未做深入研究，另外由于对LBM方法的理解还存在一些模糊的地方，还需要进一步探讨一些参数选择的原理。\\
+\indent 虽然对于圆柱绕流而言贴体网格更为自然，但是正交的均匀或非均匀网格也可给出准确结果。由于时间关系，本文未做相应尝试。
 
 \end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
