@@ -23,6 +23,7 @@ const int cx[Q] = { 0,1,0,-1,0,1,-1,-1,1 };
 const int cy[Q] = { 0,0,1,0,-1,1,1,-1,-1 };
 const double w[Q] = { 4.0 / 9, 1.0 / 9, 1.0 / 9, 1.0 / 9, 1.0 / 9, 1.0 / 36, 1.0 / 36, 1.0 / 36, 1.0 / 36 };
 const int reverse_dir[Q] = { 0,3,4,1,2,7,8,5,6 };
+const double cs_square = 1.0 / 3;
 
 //流场尺寸与网格定义
 double radius = 0.5;
@@ -30,18 +31,18 @@ double ratio = 50;
 int MeshType = 1;
 double min_gap = radius / 100;
 double min_angle = 2;
-int N = 240;
+int N = 120;
 int M = 360/min_angle;
 double cha = 1.2;
 double dt = 0.8*(radius*min_angle*pi / 180);
-//double dt = 0.8*(min_gap, (radius - min_gap)*min_angle / 180 * pi);
 
 //流场初始变量
-int STEPS = 2000;
+double Ma = 0.1;
+int STEPS = 6000;
 double DENSITY = 1.0;
-double U = 0.1;
+double U = Ma*sqrt(cs_square);
 double V = 0.0;
-double Re = 20;
+double Re = 200;
 double dynamic_vis = U*radius * 2 / Re;
 double vis = DENSITY*dynamic_vis;
 double tau = 3 * dynamic_vis / dt + 0.5;
@@ -50,12 +51,15 @@ double tau = 3 * dynamic_vis / dt + 0.5;
 double err_vel = 1.0;
 double err_rho = 1.0;
 
+//气动力系数
+double CL = 0.0;
+double CD = 0.0;
+
 class LBM_Node;
 void calcResidue(const vector<vector<LBM_Node>> &mesh);
+void calcAerodynamics(const vector<vector<LBM_Node>> &mesh);
 void Output_Velocity(ofstream &fout, const vector<vector<LBM_Node>> &mesh);
 void Output_Mesh(ofstream &fout, const vector<vector<LBM_Node>> &mesh);
-double calcLift(const vector<LBM_Node> &m);
-double calcDrag(const vector<LBM_Node> &m);
 
 void comp2phy_linear(const int &i, const int &j, double &x, double &y)
 {
@@ -349,12 +353,13 @@ int main(int argc, char **argv)
 			for (int j = 0; j < M; j++)
 				node[i][j].calcDistribution_EQ();
 		
-		//The residues
+		//The residues and aerodynamic coefficents
 		calcResidue(node);
+		calcAerodynamics(node);
 		
 		//Output some intermediate results
 		resi << setw(6) << step << setw(16) << err_vel << setw(16) << err_rho << endl;
-		ad << setw(6) << step << setw(16) << calcLift(node[1]) << setw(6) << calcDrag(node[1]) << endl;
+		ad << setw(6) << step << setw(16) << CD << setw(16) << CL << endl;
 
 		++step;
 	}
@@ -388,6 +393,52 @@ void calcResidue(const vector<vector<LBM_Node>> &mesh)
 
 	err_vel = e1 / e2;
 	err_rho = r1 / r2;
+}
+
+void calcAerodynamics(const vector<vector<LBM_Node>> &mesh)
+{
+	double Fx = 0.0, Fy = 0.0;
+
+	//P引起的法向力
+	for (int i = 0; i < mesh[1].size(); i++)
+	{
+		int curIndex = i;
+		int nextIndex = (i + 1) % mesh[1].size();
+
+		double p1 = mesh[1][curIndex].density*cs_square;
+		double p2 = mesh[1][nextIndex].density*cs_square;
+		double p_av = (p1 + p2) / 2;
+		double len = sqrt(pow(mesh[1][curIndex].x - mesh[1][nextIndex].x, 2) + pow(mesh[1][curIndex].y - mesh[1][nextIndex].y, 2));
+		double mid_x = (mesh[1][curIndex].x + mesh[1][nextIndex].x) / 2;
+		double mid_y = (mesh[1][curIndex].y + mesh[1][nextIndex].y) / 2;
+
+		double theta = mid_y / mid_x;
+		double f = p_av*len;
+		Fx += f*(-cos(theta));
+		Fy += f*(-sin(theta));
+	}
+
+	//切向的粘性力
+	for (int i = 0; i < mesh[1].size(); i++)
+	{
+		double theta = mesh[1][i].y / mesh[1][i].x;
+
+		double vel1_t = -mesh[2][i].u*sin(theta) + mesh[2][i].v*cos(theta);
+		double vel2_t = -mesh[3][i].u*sin(theta) + mesh[3][i].v*cos(theta);
+
+		double d1 = sqrt(pow(mesh[2][i].x - mesh[1][i].x, 2) + pow(mesh[2][i].y - mesh[1][i].y, 2));
+		double d2 = sqrt(pow(mesh[3][i].x - mesh[1][i].x, 2) + pow(mesh[3][i].y - mesh[1][i].y, 2));
+
+		double a1 = (d2*d2*vel1_t - d1*d1*vel2_t) / ((d2 - d1)*d1*d2);
+
+		double f = vis*a1*(radius*min_angle*pi / 180);
+
+		Fx += f*(-sin(theta));
+		Fy += f*cos(theta);
+	}
+
+	CD = Fx / (0.5*DENSITY*U*U);
+	CL = Fy / (0.5*DENSITY*U*U);
 }
 
 void Output_Mesh(ofstream &fout, const vector<vector<LBM_Node>> &mesh)
@@ -462,14 +513,3 @@ void Output_Velocity(ofstream &fout, const vector<vector<LBM_Node>> &mesh)
 		}
 	}
 }
-
-double calcLift(const vector<LBM_Node> &m)
-{
-	return 0.0;
-}
-
-double calcDrag(const vector<LBM_Node> &m)
-{
-	return 0.0;
-}
-
