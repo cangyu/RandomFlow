@@ -1,0 +1,3 @@
+#!MC 1410
+$!ALTERDATA 
+  EQUATION = '{vor_z}=ddx({V})-ddy({U})'
