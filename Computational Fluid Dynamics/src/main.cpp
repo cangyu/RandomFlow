@@ -16,7 +16,7 @@ ofstream conv("../result/convergence_history.dat");
 ofstream flow("../result/flow_field.dat");
 ofstream pd("../result/pressure_distribution.dat");
 
-const double eps = 1e-8;
+const double eps = 1e-9;
 const double pi = 4 * atan(1);
 
 int cnt_point = 0;
@@ -49,9 +49,9 @@ vector<double> primitives_inf
 	p_inf
 };
 
-double k2 = 0.9;
+double k2 = 0.75;
 double k4 = 0.015;
-double CFL = 1;
+double CFL = 1.2;
 
 const int RungeKutta_STEP = 4;
 const double RungeKutta_alpha[RungeKutta_STEP + 1] = { 0,1.0 / 4,1.0 / 3,1.0 / 2,1 };
@@ -62,7 +62,7 @@ double err_p = 1.0;
 double cl = 0;
 double cd = 0;
 
-int STEP = 5000;
+int STEP = 300;
 
 class Point
 {
@@ -83,7 +83,7 @@ public:
 	Point(double _x, double _y) :coordinate(vector<double>{_x, _y}) {}
 	Point(double _x, double _y, double _z) :coordinate(vector<double>{_x, _y, _z}) {}
 	Point(const vector<double> &_coord) :coordinate(_coord) {}
-	Point(const Point &rhs) :coordinate(rhs.coordinate) {}
+	Point(const Point &rhs) = default;
 	
 	//析构函数
 	~Point() = default;
@@ -118,14 +118,102 @@ public:
 	}
 };
 
-//Point类的<<运算符
-ostream &operator<<(ostream &fout, const Point &p)
-{
-	for (auto c : p.coordinate)
-		fout << setw(16) << c;
+vector<Point> point;
 
-	return fout;
-}
+class Cell
+{
+	friend void convertToConservativeVar(vector<double> &primitive, vector<double> &conservative);
+	friend void convertToPhysicalVar(vector<double> &conservative, vector<double> &primitive);
+
+private:
+	//opertaor=的辅助函数
+	void exchange(Cell &rhs)
+	{
+		swap(point, rhs.point);
+		swap(volum, rhs.volum);
+		swap(w, rhs.w);
+		swap(w_next, rhs.w_next);
+		swap(physicalVar, rhs.physicalVar);
+		swap(pre_physicalVar, rhs.pre_physicalVar);
+
+		swap(localTimeStep, rhs.localTimeStep);
+		swap(Q, rhs.Q);
+		swap(D, rhs.D);
+		swap(ddw, rhs.ddw);
+	}
+
+public:
+	vector<int> point;
+	double volum;
+	vector<double> w;//rho,rho*u,rho*v,rho*E
+	vector<double> w_next;
+	vector<double> physicalVar;//rho,u,v,p
+	vector<double> pre_physicalVar;
+
+	double localTimeStep;
+	vector<double> Q;//cell的对流通量
+	vector<double> D;//cell的耗散通量
+	vector<double> ddw;//守恒量w_next的Laplace
+
+					   //构造函数
+	Cell() = default;
+	Cell(const vector<int> &_pts) :
+		point(_pts),
+		volum(0),
+		w(w_inf),
+		physicalVar(primitives_inf),
+		w_next(vector<double>(w_inf.size(), 0)),
+		pre_physicalVar(vector<double>(primitives_inf.size(), 0)),
+		localTimeStep(0),
+		Q(vector<double>(w_inf.size(), 0)),
+		D(vector<double>(w_inf.size(), 0)),
+		ddw(vector<double>(w_inf.size(), 0)) {}
+	Cell(const Cell &rhs) = default;
+
+	//析构函数
+	~Cell() = default;
+
+	//赋值运算
+	Cell &operator=(Cell rhs)
+	{
+		exchange(rhs);
+		return *this;
+	}
+
+	void updatePrevRecord()
+	{
+		pre_physicalVar = physicalVar;
+	}
+
+	double getDensity() const
+	{
+		return physicalVar[0];
+	}
+	double getDensityDiff() const
+	{
+		return fabs(physicalVar[0] - pre_physicalVar[0]);
+	}
+
+	double getVelocity() const
+	{
+		return sqrt(pow(physicalVar[1], 2) + pow(physicalVar[2], 2));
+	}
+	double getVelocityDiff() const
+	{
+		return sqrt(pow(physicalVar[1] - pre_physicalVar[1], 2) + pow(physicalVar[2] - pre_physicalVar[2], 2));
+	}
+
+	double getPressure() const
+	{
+		return physicalVar[3];
+	}
+	double getPressureDiff() const
+	{
+		return fabs(physicalVar[3] - pre_physicalVar[3]);
+	}
+};
+
+vector<Cell> cell;
 
 class Edge
 {
@@ -141,7 +229,20 @@ private:
 		swap(len, rhs.len);
 		swap(delta, rhs.delta);	
 		swap(delta_n, rhs.delta_n);
+
+		swap(w_av, rhs.w_av);
+		swap(physicalVar, rhs.physicalVar);
 		swap(c, rhs.c);
+		swap(Z, rhs.Z);
+		swap(convective_flux, rhs.convective_flux);
+
+		swap(w_diff, rhs.w_diff);
+		swap(ScalingFactor, rhs.ScalingFactor);
+		swap(v, rhs.v);
+		swap(eps2, rhs.eps2);
+		swap(eps4, rhs.eps4);
+		swap(d2, rhs.d2);
+		swap(d4, rhs.d4);
 	}
 
 	//根据无反射边界条件计算远场边
@@ -223,13 +324,24 @@ public:
 	
 	//构造函数
 	Edge() = default;
-	Edge(const vector<Point> &pts, int _start, int _end, int _lc, int _rc) 
-		:start(_start),
+	Edge(const vector<Point> &pts, int _start, int _end, int _lc, int _rc):
+		start(_start),
 		end(_end), 
 		leftCell(_lc), 
 		rightCell(_rc),
+		delta(pts[_start].DeltaTo(pts[_end])),
+		w_av(vector<double>(w_inf.size(),0)),
+		physicalVar(vector<double>(primitives_inf.size(),0)),
 		c(0),
-		delta(pts[_start].DeltaTo(pts[_end]))
+		Z(0),
+		convective_flux(vector<double>(w_inf.size(),0)),
+		w_diff(vector<double>(w_inf.size(),0)),
+		ScalingFactor(0),
+		v(0),
+		eps2(0),
+		eps4(0),
+		d2(vector<double>(w_inf.size(),0)),
+		d4(vector<double>(w_inf.size(),0))
 	{
 		double length = 0;
 		for (int i = 0; i < delta.size(); i++)
@@ -360,83 +472,7 @@ public:
 	}
 };
 
-class Cell
-{
-	friend void convertToConservativeVar(vector<double> &primitive, vector<double> &conservative);
-	friend void convertToPhysicalVar(vector<double> &conservative, vector<double> &primitive);
-
-private:
-	//opertaor=的辅助函数
-	void exchange(Cell &rhs)
-	{
-		swap(point, rhs.point);
-		swap(volum, rhs.volum);
-		swap(w, rhs.w);
-		swap(w_next, rhs.w_next);
-		swap(physicalVar, rhs.physicalVar);
-		swap(pre_physicalVar, rhs.pre_physicalVar);
-	}
-
-public:
-	vector<int> point;
-	double volum;
-	vector<double> w;//rho,rho*u,rho*v,rho*E
-	vector<double> w_next;
-	vector<double> physicalVar;//rho,u,v,p
-	vector<double> pre_physicalVar;
-
-	double localTimeStep;
-	vector<double> Q;
-	vector<double> D;
-	vector<double> ddw;
-
-	Cell() = default;
-	Cell(const vector<int> &_pts) :point(_pts), volum(0), w(w_inf), physicalVar(primitives_inf), w_next(vector<double>(4, 0)), pre_physicalVar(vector<double>(4, 0)) {}
-	Cell(const Cell &rhs) = default;
-	~Cell() = default;
-
-	Cell &operator=(Cell rhs)
-	{
-		exchange(rhs);
-		return *this;
-	}
-
-	void updatePrevRecord()
-	{
-		pre_physicalVar = physicalVar;
-	}
-	
-	double getDensity() const
-	{
-		return physicalVar[0];
-	}
-	double getDensityDiff() const
-	{
-		return fabs(physicalVar[0] - pre_physicalVar[0]);
-	}
-	
-	double getVelocity() const 
-	{ 
-		return sqrt(pow(physicalVar[1], 2) + pow(physicalVar[2], 2)); 
-	}
-	double getVelocityDiff() const 
-	{ 
-		return sqrt(pow(physicalVar[1] - pre_physicalVar[1], 2) + pow(physicalVar[2] - pre_physicalVar[2], 2));
-	}
-
-	double getPressure() const
-	{
-		return physicalVar[3];
-	}
-	double getPressureDiff() const
-	{
-		return fabs(physicalVar[3] - pre_physicalVar[3]);
-	}
-};
-
-vector<Point> point;
 vector<Edge> edge;
-vector<Cell> cell;
 
 void convertToPhysicalVar(vector<double> &conservative, vector<double> &primitive);
 void convertToConservativeVar(vector<double> &primitive, vector<double> &conservative);
@@ -473,8 +509,8 @@ void convertToPhysicalVar(vector<double> &conservative, vector<double> &primitiv
 {
 	primitive[0] = conservative[0];
 	primitive[1] = conservative[1] / conservative[0];
-	primitive[0] = conservative[2] / conservative[0];
-	primitive[0] = (gama - 1)*(conservative[3] - 0.5*conservative[0] * (pow(primitive[1], 2) + pow(primitive[2], 2)));
+	primitive[2] = conservative[2] / conservative[0];
+	primitive[3] = (gama - 1)*(conservative[3] - 0.5*conservative[0] * (pow(primitive[1], 2) + pow(primitive[2], 2)));
 }
 
 void convertToConservativeVar(vector<double> &primitive, vector<double> &conservative)
@@ -517,13 +553,12 @@ void Init()
 
 	for (int i = 0; i < cnt_cell; i++)
 		mesh >> cell[i].volum;
-
-	//初始化边上的衍生数据
-	//TODO
 }
 
 void TimeMarching(int step)
 {
+	cerr << "In Step " << step << endl;
+
 	for (int i = 0; i < cnt_cell; i++)
 		cell[i].w_next = cell[i].w;
 
@@ -538,6 +573,14 @@ void TimeMarching(int step)
 
 	calcResidue();
 	calcAerodynamics();
+
+	cerr << setw(8) << step
+		<< setw(16) << err_rho
+		<< setw(16) << err_vel
+		<< setw(16) << err_p
+		<< setw(16) << cl
+		<< setw(16) << cd
+		<< endl;
 
 	conv << setw(8) << step
 		<< setw(16) << err_rho
@@ -585,7 +628,7 @@ void Output_PressureDistribution()
 		if (e.rightCell != -1)
 			continue;
 
-		if (fabs(e.delta_n[1]) > eps)//上翼面
+		if (e.delta_n[1] > 0)//上翼面
 			up.push_back(make_pair(e.getMidPoint(), cell[e.leftCell].getPressure()));
 		else//下翼面
 			down.push_back(make_pair(e.getMidPoint(), cell[e.leftCell].getPressure()));
@@ -602,19 +645,6 @@ void Output_PressureDistribution()
 
 void RungeKutta()
 {
-	//计算每个cell的当地时间步长
-	for (auto c : cell)
-		c.localTimeStep = 0;
-
-	for (auto e : edge)
-	{
-		cell[e.leftCell].localTimeStep += e.ScalingFactor;
-		if (e.rightCell>=0)
-			cell[e.rightCell].localTimeStep += e.ScalingFactor;
-	}
-	for (auto c : cell)
-		c.localTimeStep = CFL*c.volum / c.localTimeStep;
-
 	//4步Runge-Kutta迭代
 	for (int i = 1; i <= RungeKutta_STEP; i++)
 		RungeKutta_SubStep(i);
@@ -651,17 +681,17 @@ void calcResidue()
 void calcAerodynamics()
 {
 	double Fx = 0, Fy = 0;
-	double p = 0;
+	double Fp = 0;
 
 	for (auto e : edge)
 	{
 		if (e.rightCell != -1)
 			continue;
 
-		p = cell[e.leftCell].getPressure();
+		Fp = cell[e.leftCell].getPressure() * e.len;
 
-		Fx += p*e.delta_n[0];
-		Fy += p*e.delta_n[1];
+		Fx += Fp*e.delta_n[0];
+		Fy += Fp*e.delta_n[1];
 	}
 
 	cd = Fx / ke_inf;
@@ -671,52 +701,77 @@ void calcAerodynamics()
 void RungeKutta_SubStep(int step)
 {
 	//清零每个单元中的Q,D,ddw
-	for (auto c : cell)
+	for (int i = 0; i < cnt_cell; i++)
 	{
-		fill(c.Q.begin(), c.Q.end(), 0);
-		fill(c.D.begin(), c.D.end(), 0);
-		fill(c.ddw.begin(), c.ddw.end(), 0);
+		fill(cell[i].Q.begin(), cell[i].Q.end(), 0);
+		fill(cell[i].D.begin(), cell[i].D.end(), 0);
+		fill(cell[i].ddw.begin(), cell[i].ddw.end(), 0);
 	}
 
-	//求每个单元中的Q
-	for (auto e : edge)
+	//通过边求每个单元中的Q
+	for (int i = 0; i < cnt_edge; i++)
 	{
 		//得到每条边上的w,rho,u,v,p,c,Z
-		e.calcBasicVariables();
+		edge[i].calcBasicVariables();
 		
 		//得到每条边上的Q
-		e.calcConvection();
+		edge[i].calcConvection();
 
 		//每条边上的Q累加到关联的cell
-		e.addConvectionToAdjcentCell();
+		edge[i].addConvectionToAdjcentCell();
 	}
 
-	//求每个单元中的D
-	for (auto e : edge)
+	//通过边求每个单元中的D
+	for (int i = 0; i < cnt_edge; i++)
 	{
-		if (e.rightCell < 0)
+		if (edge[i].rightCell < 0)
 			continue;
 
 		//计算每条边上与人工耗散相关的量：scaling_factor，v，eps2, eps4, w_diff,d2
 		//并在过程中将w_diff累加到相关联的单元
-		e.calcDissipationRelatedVariables();
+		edge[i].calcDissipationRelatedVariables();
 	}
 
 	//每个单元的ddw都聚齐了，继续算每条边上的d4，然后累加到关联的cell
-	for (auto e : edge)
+	for (int i = 0; i < cnt_edge; i++)
 	{
-		if (e.rightCell < 0)
+		if (edge[i].rightCell < 0)
 			continue;
 		
 		//计算d4
-		e.calc_d4();
+		edge[i].calc_d4();
 
 		//每条边上的D=d2+d4累加到关联的cell,注意正负
-		e.addDissipationToAdjcentCell();
+		edge[i].addDissipationToAdjcentCell();
+	}
+
+	//在第一个迭代步内计算每个单元的当地时间步长
+	if (step == 1)
+	{
+		for (int i = 0; i < cnt_cell; i++)
+			cell[i].localTimeStep = 0;
+
+		for (int i = 0; i < cnt_edge; i++)
+		{
+			cell[edge[i].leftCell].localTimeStep += edge[i].ScalingFactor;
+			if (edge[i].rightCell >= 0)
+				cell[edge[i].rightCell].localTimeStep += edge[i].ScalingFactor;
+		}
+		for (int i = 0; i < cnt_cell; i++)
+			cell[i].localTimeStep = CFL*cell[i].volum / cell[i].localTimeStep;
 	}
 
 	//Runge-Kutta更新w_next
-	for (auto c : cell)
-		for (int i = 0; i < c.w_next.size(); i++)
-			c.w_next[i] = c.w[i] + RungeKutta_alpha[step] * c.localTimeStep*(-1.0*(c.Q[i] - c.D[i]) / c.volum);
+	for (int k = 0; k < cnt_cell; k++)
+		for (int i = 0; i < cell[k].w_next.size(); i++)
+			cell[k].w_next[i] = cell[k].w[i] + RungeKutta_alpha[step] * cell[k].localTimeStep*(-1.0*(cell[k].Q[i] - cell[k].D[i]) / cell[k].volum);
+}
+
+//Point类的<<运算符
+ostream &operator<<(ostream &fout, const Point &p)
+{
+	for (auto c : p.coordinate)
+		fout << setw(16) << c;
+
+	return fout;
 }
