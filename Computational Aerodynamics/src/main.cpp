@@ -11,6 +11,17 @@
 
 using namespace std;
 
+void convertToPhysicalVar(vector<double> &conservative, vector<double> &primitive);
+void convertToConservativeVar(vector<double> &primitive, vector<double> &conservative);
+void Init();
+void TimeMarching(int step);
+void Output_FlowField();
+void Output_PressureDistribution();
+void RungeKutta();
+void calcResidue();
+void calcAerodynamics();
+void RungeKutta_SubStep(int step);
+
 ifstream mesh("../data/naca0012.grd");
 ofstream conv("../result/convergence_history.dat");
 ofstream flow("../result/flow_field.dat");
@@ -503,19 +514,14 @@ public:
 
 vector<Edge> edge;
 
-void convertToPhysicalVar(vector<double> &conservative, vector<double> &primitive);
-void convertToConservativeVar(vector<double> &primitive, vector<double> &conservative);
-void Init();
-void TimeMarching(int step);
-void Output_FlowField();
-void Output_PressureDistribution();
-void RungeKutta();
-void calcResidue();
-void calcAerodynamics();
-void RungeKutta_SubStep(int step);
-
 int main(int argc, char **argv)
 {
+	/*
+	cout << "请输入来流参数：" << endl;
+	cout << "Ma(e.g. 0.8):"; cin >> Ma;
+	cout << "迎角（e.g. 3）："; cin >> angle_of_attack;
+	*/
+
 	//读入网格数据并初始化
 	Init();
 
@@ -586,7 +592,7 @@ void Init()
 
 void TimeMarching(int step)
 {
-	cerr << "In Step " << step << endl;
+	//cerr << "In Step " << step << endl;
 
 	for (int i = 0; i < cnt_cell; i++)
 		cell[i].w_next = cell[i].w;
