@@ -516,11 +516,37 @@ vector<Edge> edge;
 
 int main(int argc, char **argv)
 {
-	/*
 	cout << "请输入来流参数：" << endl;
 	cout << "Ma(e.g. 0.8):"; cin >> Ma;
 	cout << "迎角（e.g. 3）："; cin >> angle_of_attack;
-	*/
+	cout << "来流静压（e.g. 101325.0）："; cin >> p_inf;
+	cout <<	"来流密度（e.g. 1.225）："; cin >> rho_inf;
+	cout <<	"CFL（e.g. 1.2）："; cin >> CFL;
+	cout <<	"k2（e.g. 0.00374～0.03125）："; cin >> k2;
+	cout <<	"k4（e.g. 0.5～10）："; cin >> k4;
+	cout <<	"迭代步数（e.g. 2000）："; cin >> STEP;
+	cout << endl;
+
+	c_inf = sqrt(gama*p_inf / rho_inf);//来流音速，无粘，用等熵关系式
+	u_inf = Ma*c_inf*cos(angle_of_attack*pi / 180);
+	v_inf = Ma*c_inf*sin(angle_of_attack*pi / 180);
+	s_inf = p_inf / pow(rho_inf, gama);
+	ke_inf = 0.5*rho_inf*pow(Ma*c_inf, 2);
+
+	w_inf=vector<double>
+	{ 
+		rho_inf,
+		rho_inf*u_inf,
+		rho_inf*v_inf,
+		p_inf / (gama - 1) + rho_inf*(pow(u_inf,2) + pow(v_inf,2))*0.5 
+	};
+	primitives_inf=vector<double>
+	{
+		rho_inf,
+		u_inf,
+		v_inf,
+		p_inf
+	};
 
 	//读入网格数据并初始化
 	Init();
