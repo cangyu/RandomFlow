@@ -25,7 +25,7 @@ int cnt_cell = 0;
 
 const double gama = 1.4;
 double Ma = 0.8;
-double angle_of_attack = 3;//degree
+double angle_of_attack = 5;//degree
 double p_inf = 101325.0;//Pa
 double rho_inf = 1.225;//Kg/m^3
 double c_inf = sqrt(gama*p_inf / rho_inf);//来流音速，无粘，用等熵关系式
@@ -62,7 +62,7 @@ double err_p = 1.0;
 double cl = 0;
 double cd = 0;
 
-int STEP = 300;
+int STEP = 2000;
 
 class Point
 {
@@ -79,14 +79,14 @@ public:
 	vector<double> coordinate;
 
 	//构造函数
-	Point() = default;
+	Point() {}
 	Point(double _x, double _y) :coordinate(vector<double>{_x, _y}) {}
 	Point(double _x, double _y, double _z) :coordinate(vector<double>{_x, _y, _z}) {}
 	Point(const vector<double> &_coord) :coordinate(_coord) {}
-	Point(const Point &rhs) = default;
+	Point(const Point &rhs) :coordinate(rhs.coordinate) {}
 	
 	//析构函数
-	~Point() = default;
+	~Point() {}
 	
 	//重载赋值运算符
 	Point &operator=(Point rhs)
@@ -155,9 +155,9 @@ public:
 	vector<double> D;//cell的耗散通量
 	vector<double> ddw;//守恒量w_next的Laplace
 
-					   //构造函数
-	Cell() = default;
-	Cell(const vector<int> &_pts) :
+	//构造函数
+	Cell() {}
+	Cell(const vector<int> &_pts):
 		point(_pts),
 		volum(0),
 		w(w_inf),
@@ -168,10 +168,20 @@ public:
 		Q(vector<double>(w_inf.size(), 0)),
 		D(vector<double>(w_inf.size(), 0)),
 		ddw(vector<double>(w_inf.size(), 0)) {}
-	Cell(const Cell &rhs) = default;
+	Cell(const Cell &rhs):
+		point(rhs.point),
+		volum(rhs.volum),
+		w(rhs.w),
+		physicalVar(rhs.physicalVar),
+		w_next(rhs.w_next),
+		pre_physicalVar(rhs.pre_physicalVar),
+		localTimeStep(rhs.localTimeStep),
+		Q(rhs.Q),
+		D(rhs.D),
+		ddw(rhs.ddw) {}
 
 	//析构函数
-	~Cell() = default;
+	~Cell() {}
 
 	//赋值运算
 	Cell &operator=(Cell rhs)
@@ -269,7 +279,7 @@ private:
 		{
 			w_av = cell[leftCell].w_next;
 			convertToPhysicalVar(w_av, physicalVar);
-			c = sqrt(gama*physicalVar[3] / physicalVar[0]);
+			c = sqrt(gama*physicalVar[3] / physicalVar[0]);//内侧单元的声速，有别于下面的c
 			double Vn_cell = physicalVar[1] * delta_n[0] + physicalVar[2] * delta_n[1];
 
 			//Riemann Invariants
@@ -292,7 +302,7 @@ private:
 			}
 			else//亚音速出流
 			{
-				double s = w_av[3] / pow(w_av[0], gama);
+				double s = physicalVar[3] / pow(physicalVar[0], gama);
 				physicalVar[0] = pow(pow(c, 2) / (gama*s), 1.0 / (gama - 1));
 				physicalVar[1] += (Vn - Vn_cell)*delta_n[0];
 				physicalVar[2] += (Vn - Vn_cell)*delta_n[1];
@@ -323,7 +333,7 @@ public:
 	vector<double> d2, d4;//components of the dissipation_flux
 	
 	//构造函数
-	Edge() = default;
+	Edge() {}
 	Edge(const vector<Point> &pts, int _start, int _end, int _lc, int _rc):
 		start(_start),
 		end(_end), 
@@ -350,10 +360,29 @@ public:
 
 		delta_n = vector<double>{ delta[1] / len,-delta[0] / len };
 	}
-	Edge(const Edge &rhs) = default;
+	Edge(const Edge &rhs):
+		start(rhs.start),
+		end(rhs.end),
+		leftCell(rhs.leftCell),
+		rightCell(rhs.rightCell),
+		len(rhs.len),
+		delta(rhs.delta),
+		delta_n(rhs.delta_n),
+		w_av(rhs.w_av),
+		physicalVar(rhs.physicalVar),
+		c(rhs.c),
+		Z(rhs.Z),
+		convective_flux(rhs.convective_flux),
+		w_diff(rhs.w_diff),
+		ScalingFactor(rhs.ScalingFactor),
+		v(rhs.v),
+		eps2(rhs.eps2),
+		eps4(rhs.eps4),
+		d2(rhs.d2),
+		d4(rhs.d4) {}
 	
 	//析构函数
-	~Edge() = default;
+	~Edge() {}
 
 	//重载赋值运算
 	Edge &operator=(Edge rhs)
@@ -375,7 +404,7 @@ public:
 	}
 
 	//计算该边上的w_av，根据不同类型做不同处理
-	//进一步得到边上的rho,u,v,p,c,Z
+	//进一步得到边上的rho,u,v,p,c,Z,ScalingFactor
 	//注意：由于这只用于Runge-Kutta中的迭代，所以从每个cell中的w_next中取数据
 	void calcBasicVariables()
 	{
@@ -402,6 +431,7 @@ public:
 			calcFarBound();
 			Z = physicalVar[1] * delta[1] - physicalVar[2] * delta[0];
 		}
+		ScalingFactor = fabs(Z) + c*len;
 	}
 
 	//计算该边上的对流通量Q
@@ -426,14 +456,13 @@ public:
 		}
 	}
 
-	//计算与人工耗散相关的量：scaling_factor，v，eps2,eps4,w_diff(右-左),d2
+	//计算与人工耗散相关的量：v，eps2,eps4,w_diff(右-左),d2
 	//在过程中将w_diff累加到相关联的单元
 	//注意：耗散相关的量需要边的两侧都有cell,但此处并未显示要求，应在调用过程中体现
 	//由于只用于Runge-Kutta中的迭代，所以用cell的w_next而不是w
 	void calcDissipationRelatedVariables()
 	{
 		//人工耗散相关的量
-		ScalingFactor = fabs(Z) + c*len;
 		v = fabs((cell[rightCell].getPressure() - cell[leftCell].getPressure()) / (cell[rightCell].getPressure() + cell[leftCell].getPressure()));
 		eps2 = k2*v;
 		eps4 = max(0.0, k4 - eps2);
@@ -628,7 +657,7 @@ void Output_PressureDistribution()
 		if (e.rightCell != -1)
 			continue;
 
-		if (e.delta_n[1] > 0)//上翼面
+		if (e.delta_n[1] < 0)//上翼面
 			up.push_back(make_pair(e.getMidPoint(), cell[e.leftCell].getPressure()));
 		else//下翼面
 			down.push_back(make_pair(e.getMidPoint(), cell[e.leftCell].getPressure()));
@@ -711,7 +740,7 @@ void RungeKutta_SubStep(int step)
 	//通过边求每个单元中的Q
 	for (int i = 0; i < cnt_edge; i++)
 	{
-		//得到每条边上的w,rho,u,v,p,c,Z
+		//得到每条边上的w,rho,u,v,p,c,Z,ScalingFactor
 		edge[i].calcBasicVariables();
 		
 		//得到每条边上的Q
@@ -727,7 +756,7 @@ void RungeKutta_SubStep(int step)
 		if (edge[i].rightCell < 0)
 			continue;
 
-		//计算每条边上与人工耗散相关的量：scaling_factor，v，eps2, eps4, w_diff,d2
+		//计算每条边上与人工耗散相关的量：v，eps2, eps4, w_diff,d2
 		//并在过程中将w_diff累加到相关联的单元
 		edge[i].calcDissipationRelatedVariables();
 	}
