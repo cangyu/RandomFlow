@@ -31,11 +31,21 @@
 \clearpage
 
 \section{问题描述}
-求解无粘条件下NACA0012翼型的2维平面流场。流场网格是由三角形单元组成的非结构网格，使用有限体积方法求解流场的2维Euler方程。网格文件为data文件夹下的naca0012.grd文件。翼型周围网格如下：
+求解无粘条件下NACA0012翼型的2维平面流场。流场网格是由三角形单元组成的非结构网格，使用有限体积方法求解流场的2维Euler方程。网格文件为data文件夹下的naca0012.grd文件。全流场的网格如下左图所示，右图是翼型周围的网格：
+\begin{figure}[htbp]
+\centering\includegraphics[width=5.5cm,height=4.5cm]{../data/mesh_naca0012.png}
+\centering\includegraphics[width=5.5cm,height=4.5cm]{../data/mesh_naca0012_local.png}
+\caption{用于NACA0012翼型的非结构网格}
+\end{figure}
 
 \section{问题分析}
+本文采用Jameson中心格式来求解二维Euler方程。在空间离散上采用的是有限体积法，时间上采用的是四步显式Runge－Kutta迭代求得最后的定常解。人工耗散项为守恒变量的二阶和四阶差分项。边界条件采用的是无反射边界条件，并采用当地时间步长进行加速收敛。
 
 \subsection{基本方程}
+由于不考虑粘性，二维NS方程可简化为Euler方程，形式如下：
+\begin{equation}
+
+\end{equation}
 
 \subsection{空间离散}
 
