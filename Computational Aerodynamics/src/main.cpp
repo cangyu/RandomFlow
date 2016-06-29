@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <iomanip>
 #include <cstring>
 #include <vector>
@@ -23,9 +24,9 @@ void calcAerodynamics();
 void RungeKutta_SubStep(int step);
 
 ifstream mesh("../data/naca0012.grd");
-ofstream conv("../result/convergence_history.dat");
-ofstream flow("../result/flow_field.dat");
-ofstream pd("../result/pressure_distribution.dat");
+ofstream conv;
+ofstream flow;
+ofstream pd;
 
 const double eps = 1e-9;
 const double pi = 4 * atan(1);
@@ -516,14 +517,15 @@ vector<Edge> edge;
 
 int main(int argc, char **argv)
 {
+    //输入参数
 	cout << "请输入来流参数：" << endl;
 	cout << "Ma(e.g. 0.8):"; cin >> Ma;
 	cout << "迎角（e.g. 3）："; cin >> angle_of_attack;
 	cout << "来流静压（e.g. 101325.0）："; cin >> p_inf;
 	cout <<	"来流密度（e.g. 1.225）："; cin >> rho_inf;
 	cout <<	"CFL（e.g. 1.2）："; cin >> CFL;
-	cout <<	"k2（e.g. 0.00374～0.03125）："; cin >> k2;
-	cout <<	"k4（e.g. 0.5～10）："; cin >> k4;
+	cout <<	"k2（e.g. 0.5～10）："; cin >> k2;
+	cout <<	"k4（e.g. 0.00374～0.03125）："; cin >> k4;
 	cout <<	"迭代步数（e.g. 2000）："; cin >> STEP;
 	cout << endl;
 
@@ -547,6 +549,26 @@ int main(int argc, char **argv)
 		v_inf,
 		p_inf
 	};
+   
+    assert(mesh);
+   
+    stringstream ss;
+    ss<<"../result/"<<Ma<<'_'<<angle_of_attack<<'_';
+    
+    string f1(ss.str());
+    f1.append("convergence_history.dat");
+    conv.open(f1);
+    assert(conv);
+    
+    string f2(ss.str());
+    f2.append("flow_field.dat");
+    flow.open(f2);
+    assert(flow);
+
+    string f3(ss.str());
+    f3.append("pressure_distribution.dat");
+    pd.open(f3);
+    assert(pd);
 
 	//读入网格数据并初始化
 	Init();
@@ -690,9 +712,9 @@ void Output_PressureDistribution()
 			continue;
 
 		if (e.delta_n[1] < 0)//上翼面
-			up.push_back(make_pair(e.getMidPoint(), cell[e.leftCell].getPressure()));
+			up.push_back(make_pair(e.getMidPoint(), (cell[e.leftCell].getPressure()-p_inf)/ke_inf));
 		else//下翼面
-			down.push_back(make_pair(e.getMidPoint(), cell[e.leftCell].getPressure()));
+			down.push_back(make_pair(e.getMidPoint(), (cell[e.leftCell].getPressure()-p_inf)/ke_inf));
 	}
 
 	for (auto elem : up)

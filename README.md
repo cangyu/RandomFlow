@@ -2,10 +2,9 @@
 Archives for HWs,experiments,course projects during my postgraduate period.
 
 ###Computational Aerodynamics(CE012002, Autumn 2015)
-Course project, lectured by Prof. Liu Xue-qiang and Xia Jian.
-In this project, I performed a simulation of the invisid flow over the NACA0012 airfoil.  
-Although the legacy program were mainly writen in Fortran, I carried out this project using C++ from scratch.  
-
+Course project, lectured by Prof. Liu Xue-qiang and Xia Jian.  
+In this project, I performed a simulation of the invisid flow over the NACA0012 airfoil using the Finite Volumn Method.12 experiments were done with Mach equals 0.3,0.8,1.2 respectively, and the angle of attack(alpha) equals 0,3,6,9 for each Mach case.  
+Although the legacy program were mainly writen in Fortran, I carried out this project using C++ from scratch and the abstraction is quite clear.  
 
 ###Variational Principle and Finite Element Method(CE013009, Spring 2016)
 Course project, lectured by Prof. Shi Zhi-yu.  
