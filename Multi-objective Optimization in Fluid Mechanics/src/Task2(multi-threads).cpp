@@ -14,6 +14,7 @@
 #include <ctime>
 #include <cstring>
 #include <limits>
+#include <cassert>
 
 #include <thread>
 #include <mutex>
@@ -23,9 +24,8 @@ using namespace std;
 
 typedef double(*ObjFuncPtr)(const vector<double> &);
 
-ofstream fout("./results/Test2.txt");
+ofstream fout("../results/Test2(multi-thread).txt");
 const double eps = 1e-12;
-mutex mtx;
 
 size_t varCnt = 2;
 vector<double> leftBound, rightBound, resolution;
@@ -39,6 +39,13 @@ size_t PopulationSize = 200;
 size_t GenerationCnt = 40;
 double P_Cross = 0.65;
 double P_Mutate = 0.001;
+
+vector<double> best(2, 0);
+double minObjVal = (numeric_limits<double>::max)();
+
+mutex mtx[2], wrt_mtx;
+condition_variable cond[2], wrt_cond;
+bool wrt_ok = true;
 
 /**
 * Calculate the object function of F(x,y)=((x-1)y)^2+(xy-2)^4
@@ -265,45 +272,52 @@ void GA_Solver(ObjFuncPtr func, vector<double> &var, size_t self)
 	var[self] = grp_cur.back().var[self];
 }
 
-/*
+
 void nashGA(ObjFuncPtr func, size_t self)
 {
 	vector<double> local_var;
 	for (int i = 0; i < RoundCnt; i++)
 	{
-		while (!hasUpdated[1 - self]);
-
-		mtx.lock();
-		local_var = ans;
-		mtx.unlock();
+		unique_lock<mutex> lk_other(mtx[1 - self]);
+		cond[1 - self].wait(lk_other, [self]{return hasUpdated[1 - self]; });
 		hasUpdated[1 - self] = false;
+		local_var = ans;
+		cond[1 - self].notify_all();
+		lk_other.unlock();
 
 		GA_Solver(func, local_var, self);
 
-		mtx.lock();
+		unique_lock<mutex> lk_self(mtx[self]);
 		ans[self] = local_var[self];
-		double curObj = (*func)(ans);
-		fout << "Thread " << self << ", 第" <<setw(3)<< i << "次迭代：" << setw(16) << ans[0] << " " << setw(16) << ans[1] << setw(16) << curObj << endl;
+		hasUpdated[self] = true;
+		cond[self].notify_all();
+		lk_self.unlock();
+
+
+		double curObj = (*func)(local_var);
+
+		unique_lock<mutex> lk_wrt(wrt_mtx);
+		wrt_cond.wait(lk_wrt, [] {return wrt_ok; });
+		wrt_ok = false;
+		fout << "Player " << self << ", 第" << setw(3) << i << "次迭代：" << setw(16) << local_var[0] << " " << setw(16) << local_var[1] << setw(16) << curObj << endl;
+		cout << "Player " << self << ", 第" << setw(3) << i << "次迭代：" << setw(16) << local_var[0] << " " << setw(16) << local_var[1] << setw(16) << curObj << endl;
 		if (curObj < minObjVal)
 		{
 			minObjVal = curObj;
-			best = ans;
+			best = local_var;
 		}
-		mtx.unlock();
-		hasUpdated[self] = true;
+		wrt_ok = true;
+		wrt_cond.notify_all();
+		lk_wrt.unlock();
 	}
 }
-*/
+
 
 int main(int argc, char **argv)
 {
-	if (!fout)
-		throw "Invalid output file path!\n";
+	assert(fout);
 	
 	srand(time(NULL));
-
-	vector<double> best(2, 0);
-	double minObjVal = (numeric_limits<double>::max)();
 
 	//Input
 	cout << "请输入目标函数的相关参数：" << endl;
@@ -343,45 +357,15 @@ int main(int argc, char **argv)
 	fout << "GA 种群规模：" << PopulationSize << endl;
 	fout << "GA 迭代次数：" << GenerationCnt << endl;
 	fout << "GA 交叉概率：" << P_Cross << endl;
-	fout << "GA 变异概率：" << P_Mutate << endl << endl;
-
-	//Init
-	/*for (size_t i = 0; i < varCnt; i++)
-		ans[i] = min((rand() % 100) / 100.0 * (rightBound[i] - leftBound[i]) + leftBound[i], rightBound[i]);*/
-
-	//cout << "初始值为：x=" << ans[0] << "，y=" << ans[1] << endl << endl;
-	//fout << "初始值为：x=" << ans[0] << "，y=" << ans[1] << endl << endl;
+	fout << "GA 变异概率：" << P_Mutate << endl;
+	fout << "初始值为：x=" << ans[0] << "，y=" << ans[1] << endl << endl;
 
 	//Play!
-	//thread player1(nashGA, F, 0);
-	//thread player2(nashGA, F, 1);
+	thread player1(nashGA, F, 0);
+	thread player2(nashGA, F, 1);
 
-	//player1.join();
-	//player2.join();
-
-	cout << setw(6) << "Round" << setw(12) << "x" << setw(12) << "y" << setw(16) << "F(x,y)" << setw(8) << "Player" << endl;
-	fout << setw(6) << "Round" << setw(12) << "x" << setw(12) << "y" << setw(16) << "F(x,y)" << setw(8) << "Player" << endl;
-
-	for (size_t i = 0; i < RoundCnt; i++)
-	{
-		vector<vector<double>> local_var(varCnt, vector<double>(varCnt));
-
-		cout << setw(6) << i << setw(12) << ans[0] << setw(12) << ans[1] << setw(16) << (*F)(ans) << setw(8) << "prev" << endl;
-		fout << setw(6) << i << setw(12) << ans[0] << setw(12) << ans[1] << setw(16) << (*F)(ans) << setw(8) << "prev" << endl;
-
-		for (size_t k = 0; k < varCnt; k++)
-		{
-			local_var[k] = ans;
-			GA_Solver(F, local_var[k], k);
-			cout << setw(6) << i << setw(12) << local_var[k][0] << setw(12) << local_var[k][1] << setw(16) << (*F)(local_var[k]) << setw(8) << k << endl;
-			fout << setw(6) << i << setw(12) << local_var[k][0] << setw(12) << local_var[k][1] << setw(16) << (*F)(local_var[k]) << setw(8) << k << endl;
-		}
-		cout << endl;
-		fout << endl;
-
-		for (size_t k = 0; k < varCnt; k++)
-			ans[k] = local_var[k][k];
-	}
+	player1.join();
+	player2.join();
 
 	//Output
 	fout << endl << endl << "最优结果为：x=" << best[0] << "，y=" << best[1] << "，F(x,y)=" << minObjVal << endl;
