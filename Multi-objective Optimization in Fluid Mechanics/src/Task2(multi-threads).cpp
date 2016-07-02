@@ -24,7 +24,7 @@ using namespace std;
 
 typedef double(*ObjFuncPtr)(const vector<double> &);
 
-ofstream fout("../results/Test2(multi-thread).txt");
+ofstream fout("../results/Test2(multi-threads).txt");
 const double eps = 1e-12;
 
 size_t varCnt = 2;
@@ -331,13 +331,13 @@ int main(int argc, char **argv)
 		resolution.push_back(p);
 	}
 	cout << "请输入Nash Player的相关参数：" << endl;
-	cout << "回合数："; cin >> RoundCnt;
+	cout << "回合数：(e.g. 80)"; cin >> RoundCnt;
 	cout << "请输入GA的相关参数：" << endl;
 	cout << "种群规模(e.g. 200 or 2e2)："; cin >> PopulationSize;
-	cout << "迭代次数(e.g. 50 or 5e1)："; cin >> GenerationCnt;
+	cout << "迭代次数(e.g. 80 or 8e1)："; cin >> GenerationCnt;
 	cout << "交叉概率(e.g. 0.65 or 6.5e-1)："; cin >> P_Cross;
 	cout << "变异概率(e.g. 0.001 or 1e-3)："; cin >> P_Mutate;
-	cout << "初始值[x0,y0](以空格间开)："; cin >> ans[0] >> ans[1];
+	cout << "初始值[x0,y0](以空格间开 e.g. -3.14 1.618)："; cin >> ans[0] >> ans[1];
 	cout << "Calculating..." << endl << endl;
 
 	//Rounding

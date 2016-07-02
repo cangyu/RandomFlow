@@ -198,7 +198,7 @@ int main(int argc, char **argv)
 	cout << "x2取值范围(以空格间开，e.g. -3 3)："; cin >> l2 >> r2;
 	cout << "x2的精度(e.g. 0.001 or 1e-3)："; cin >> p2;
 	cout << "种群规模(e.g. 200 or 2e2)："; cin >> PopulationSize;
-	cout << "迭代次数(e.g. 50 or 5e1)："; cin >> GenerationCnt;
+	cout << "迭代次数(e.g. 80 or 8e1)："; cin >> GenerationCnt;
 	cout << "交叉概率(e.g. 0.65 or 6.5e-1)："; cin >> P_Cross;
 	cout << "变异概率(e.g. 0.001 or 1e-3)："; cin >> P_Mutate;
 	cout << "Calculating..." << endl;

@@ -42,7 +42,7 @@
 本文采用Jameson中心格式来求解二维Euler方程。在空间离散上采用的是有限体积法，时间上采用的是四步显式Runge－Kutta迭代求得最后的定常解。人工耗散项为守恒变量的二阶和四阶差分项。边界条件采用的是无反射边界条件，并采用当地时间步长进行加速收敛。
 
 \subsection{基本方程}
-由于不考虑粘性，二维NS方程可简化为Euler方程，形式如下：
+由于不考虑粘性，二维NS方程可简化为Euler方程。欧拉方程是质量，动量，能量守恒定理的表达。在边界为S，体积为Ω的二维区域，方程可以写成以下形式：
 \begin{equation}
 
 \end{equation}
@@ -55,7 +55,19 @@
 
 \section{编程实现}
 
+\subsection{数据存储结构}
+
+\subsection{程序流程}
+
 \section{结果分析}
+
+\subsection{Ma=0.3}
+
+
+
+\subsection{Ma=0.8}
+
+\subsection{Ma=1.2}
 
 \section{总结}
 

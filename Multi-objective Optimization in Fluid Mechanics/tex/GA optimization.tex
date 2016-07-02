@@ -1,4 +1,5 @@
 \documentclass[UTF8]{ctexart}
+\usepackage{geometry}
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{enumerate}
@@ -10,6 +11,8 @@
 \lstset{breaklines}%这条命令可以让LaTeX自动将长的代码行换行排版
 \lstset{extendedchars=false}%这一条命令可以解决代码跨页时，章节标题，页眉等汉字不显示的问题
 
+\geometry{left=2cm,right=2cm,top=2cm,bottom=1cm}
+
 \title{\heiti 《流体力学中的多目标优化》 \\ 大作业}
 \author{SX1501021 仓宇}
 \date{\today}
@@ -20,17 +23,6 @@
 \maketitle
 \setcounter{page}{0}
 \thispagestyle{empty}
-
-\clearpage
-
-\begin{abstract}
-本文介绍了用经典遗传算法来求解一些函数优化问题的实验过程，实验主要包括两部分：
-\begin{enumerate}[(1)]
-\item 求解一元函数、二元函数在给定区间上的最小值。
-\item 利用Nash均衡求二元函数在给定区间上的最小值。
-\end{enumerate}
-\end{abstract}
-
 \clearpage
 
 \tableofcontents
@@ -69,41 +61,39 @@
 \indent 详细证明可参见相关教材，在此不作赘叙。
 
 \section{求一元函数最小值点}
-
 \subsection{问题描述}
 考虑如下优化问题：
-\[
+\begin{equation}
 	\min_x F(x) = (x-2.5)^2 \indent -5.0 \leq x \leq 5.0 
-\]
+\end{equation}
 
 \subsection{问题分析}
-这是一个简单的一元二次函数，理论上，函数取得其全局最优解0。\\
-\indent 该函数在给定区间上的图像如下：
-
+这是一个简单的一元二次函数，理论上，函数取得其全局最优解0。该函数在给定区间上的图像如下：
+\begin{figure}[htbp]\centering
+\includegraphics [width=7cm,height=7cm]{../pic/T1-1_func.png} 
+\caption{$F(x) = (x-2.5)^2$图像}
+\end{figure}
 \indent 对于该问题，只要生成较为均匀的初始种群，经过若干代进化后则可以收敛到最小值点。\\
 \indent 由于要找到最小值点，适应度函数应是关于目标值的减函数，本例中采用如下形式的适应度函数：
-\[
+\begin{equation}
 	fitVal=-ln(objVal+eps) \indent eps=1e-12
-\]
-
-\indent 在目标值后加上一个小量是为了避免在0点处超出定义域。\\
-\indent 由于问题较简单，因此不采用“精英”策略，即不保留当前种群中适应度最高的个体到下一代。\\
+\end{equation}
+\indent 在目标值后加上一个小量是为了避免在0点处超出定义域。由于问题较简单，因此不采用“精英”策略，即不保留当前种群中适应度最高的个体到下一代。
 
 \subsection{编程实现}
-本实验用C++实现，采用“面向对象”的方法，将“染色体”抽象为一个类，该类中包含了描述该条染色体信息的一些数据成员，并封装了交叉、变异操作。\\
-\indent 主函数中的流程如下：
-\begin{enumerate}[(a)]
-\item 提示操作者输入相关参数，如种群规模、迭代次数、交叉概率、变异概率等。
-\item 根据输入参数生成初始种群，并计算种群中每个个体的目标值与适应值。
-\item 根据输入参数进行迭代，并在每一次迭代结束时输出当前结果。
-\end{enumerate}
+本实验用C++实现，采用“面向对象”的方法，将“染色体”抽象为一个类，该类中包含了描述该条染色体信息的一些数据成员，并封装了交叉、变异操作。主函数中的流程如下：
+\begin{figure}[htbp]\centering
+\includegraphics [width=9cm,height=13cm]{../pic/T1-1_procedure.png} 
+\caption{GA求一元函数最小值程序流程}
+\end{figure}
+
 \indent 本实验的选择算子采用锦标赛选择法，每次有放回地随机选2个个体，然后取适应值高的个体复制到下一代留作进一步进化操作。虽然赌轮选择是较为常用的一种选择方法，但是其误差较大，因此本实验不采用。\\
 \indent 交叉算子和变异算子封装在每个染色体对象中。交叉操作采用单点交叉的方式，每次随机选择一个交叉点，再根据给定的交叉概率(P\_Cross)决定是否执行交叉运算。\\
 \indent 变异操作较简单，算子在遍历基因串的每一位时取一个随机概率，若该随机概率小于设定的变异概率(P\_Mutate)则反转(Flip)该位，否则保持不变。
 
 \subsection{运行结果与分析}
 本实验的参数取值如下：
-\begin{center}
+\begin{table}[htbp]\centering
 \begin{tabular}{cc}
   \toprule
   参数 & 值 \\
@@ -111,57 +101,61 @@
   基因串长度 & 24 \\
   自变量精度 & 5.96046e-007\\
   种群规模   & 200 \\
-  迭代次数   & 50 \\
+  迭代次数   & 80 \\
   交叉概率   & 0.65 \\
   变异概率   & 0.001 \\
   \bottomrule
 \end{tabular}
-\end{center}
-得到的结果如下图所示：
-\begin{center}
-\end{center}
+\caption{GA求一元函数最小值测试参数}
+\end{table}
 
-\indent 从实验结果可知对于简单的一元函数，遗传算法在给定区间上能够较快地收敛到极值点，没有早熟或振荡现象，效果较好。
+\indent 得到的结果如下图所示：
+\begin{figure}[htbp]\centering
+\includegraphics [width=8cm,height=8cm]{../pic/T1-1_res_x.png} 
+\includegraphics [width=8cm,height=8cm]{../pic/T1-1_res_fx.png} 
+\caption{GA求一元函数最小值结果}
+\end{figure}
+
+\indent 可见对于简单的一元函数，遗传算法在给定区间上能够较快地收敛到极值点，虽然在初始阶段有振荡，但整体效果仍然较好。
 
 \section{求二元函数最小值点}
 
 \subsection{问题描述}
 考虑如下优化问题：
-\[
+\begin{equation}
 	\min_{x_1,x_2} F(x_1,x_2) = (x_1-1.5)^4+(x_2+1.5)^2 \indent -3.0 \leq x_i \leq 3.0,i=1,2 
-\]
+\end{equation}
 
 \subsection{问题分析}
-这是一个二元函数，理论上，函数取得其全局最优解0。\\
-\indent 该函数在给定区间上的图像如下：
+理论上，该二元函数取得其全局最优解0。该函数在给定区间上的图像如下：
+\begin{figure}[htbp]\centering
+\includegraphics [width=11cm,height=11cm]{../pic/T1-2_func.png} 
+\caption{$F(x_1,x_2) = (x_1-1.5)^4+(x_2+1.5)^2$函数图像}
+\end{figure}
 
 \indent 由于目标函数中有两个变量，因此情况较上一例略复杂，但原理相同，均是先生成较为均匀的初始种群，再经过若干代进化后收敛到最小值点。\\
 \indent 虽然有两个变量，但是仍可以在一个基因串中表示，本实验的处理方法是用基因串的前半截表示第一个变量，用后半截表示另一个变量。\\
 \indent 由于要找到最小值点，适应度函数应是关于目标值的减函数，本例中采用如下形式的适应度函数：
-\[
+\begin{equation}
 	fitVal=-objVal
-\]
+\end{equation}
 
 \indent 由于在实验中未发现明显得发散现象，因此仍然不采用“精英”策略。
 
 \subsection{编程实现}
-
-本实验中对染色体的抽象和上例类似，同样采用“面向对象的方法”将“染色体”抽象为一个类，该类中包含了描述该条染色体信息的一些数据成员，并封装了交叉、变异操作。\\
-\indent 不同于上例的是由于本例要处理两个变量，因此“染色体”类中还新加入了表示变量基因串长度的数据成员，并对构造函数、目标值函数和适应值值函数做了相应的修改。\\
-\indent 主函数中的流程如下：
-\begin{enumerate}[(a)]
-\item 提示操作者输入相关参数，如自变量区间、自变量精度、种群规模、迭代次数、交叉概率、变异概率等。
-\item 根据输入参数生成初始种群，并计算种群中每个个体的目标值与适应值。
-\item 根据输入参数进行迭代，并在每一次迭代结束时输出当前结果。
-\end{enumerate}
-3个遗传算子的具体实现：\\
-\indent 选择算子采用锦标赛选择法(Tournament)，每次有放回地随机选2个个体，然后取适应值高的个体复制到下一代留作进一步进化操作。
+本实验中对染色体的抽象和上例类似，同样采用“面向对象的方法”将“染色体”抽象为一个类，该类中包含了描述该条染色体信息的一些数据成员，并封装了交叉、变异操作。3个遗传算子的具体实现如下：\\
+\indent 选择算子采用锦标赛选择法(Tournament)，每次有放回地随机选2个个体，然后取适应值高的个体复制到下一代留作进一步进化操作。\\
 \indent 交叉算子和变异算子封装在每个染色体对象中。交叉操作采用单点交叉的方式，每次随机选择一个交叉点，再根据给定的交叉概率(P\_Cross)决定是否执行交叉运算。\\
-\indent 变异操作较简单，算子在遍历基因串的每一位时取一个随机概率，若该随机概率小于设定的变异概率(P\_Mutate)则反转(Flip)该位，否则保持不变。
+\indent 变异操作较简单，算子在遍历基因串的每一位时取一个随机概率，若该随机概率小于设定的变异概率(P\_Mutate)则反转(Flip)该位，否则保持不变。\\
+\indent 由于本例要处理两个变量，因此“染色体”类中还新加入了表示变量基因串长度的数据成员，并对构造函数、目标值函数和适应值值函数做了相应的修改。主函数的流程如下：
+\begin{figure}[htbp]\centering
+\includegraphics [width=8cm,height=11cm]{../pic/T1-2_procedure.png} 
+\caption{GA求二元函数最小值程序流程}
+\end{figure}
 
 \subsection{运行结果与分析}
 \indent 本实验的参数取值如下：
-\begin{center}
+\begin{table}[htbp]\centering
 \begin{tabular}{cc}
   \toprule
   参数 & 值 \\
@@ -170,15 +164,22 @@
   自变量$x_1$精度 & 0.000732422\\
   自变量$x_2$精度 & 0.000732422\\
   种群规模   & 200 \\
-  迭代次数   & 50 \\
+  迭代次数   & 80 \\
   交叉概率   & 0.65 \\
   变异概率   & 0.001 \\
   \bottomrule
 \end{tabular}
-\end{center}
-得到的结果如下图所示：
-\begin{center}
-\end{center}
+\caption{GA求二元函数最小值测试参数}
+\end{table}
+
+\indent 得到的结果如下图所示：
+\clearpage
+
+\begin{figure}[htbp]\centering
+\includegraphics [width=8cm,height=8cm]{../pic/T1-2_res_x1_x2.png} 
+\includegraphics [width=8cm,height=8cm]{../pic/T1-2_res_f.png} 
+\caption{GA求二元函数最小值结果}
+\end{figure}
 
 \indent 从实验结果可知,对于简单的二元函数，遗传算法在给定区间上也能够较快地收敛到极值点，没有早熟或振荡现象，效果较好。
 
@@ -190,56 +191,52 @@ Nash GA for minimization of $F(x,y)$ with 2 players:
 \[ Player2=\min_y F(\overline{x},y)=y^2 (\overline{x}-1)^2+(\overline{x}y-2)^4 \indent -4.0 \leq y \leq 4.0 \\ \]
 
 \subsection{问题分析}
-这是一个二元函数，理论上，函数取得其全局最优解0。\\
-\indent 该函数在给定区间上的图像如下：\\
+这是一个二元函数，理论上，函数取得其全局最优解0。该函数在给定区间上的图像如下:
+\begin{figure}[htbp]\centering
+\includegraphics[width=5.5cm,height=5cm]{../pic/T2_func.png}
+\caption{本例Nash GA的目标函数}
+\end{figure}
 
 \indent 该优化问题的处理方式和上一例处理二元函数的方法不同，Nash GA的做法是在每个迭代步中将2个变量分别交给2个Player来优化，每个Player根据对方的值来优化自己的值，最终达到所谓的Nash 均衡。而不是像上例中在一个迭代步中用1个GA同时优化2个变量。\\
 \indent 算法的运行示意图如下：
-\begin{center}
+\begin{figure}[htbp]\centering
 \includegraphics[width=14cm,height=10cm]{../pic/T2_illus.png}
-\end{center}
-\indent 因此，该问题的解决思路是先从一个给定的初始值开始，然后针对每个变量分别运行一次针对一元函数的遗传优化算法，对每个变量都优化过后再将结果汇总，带入到下一个迭代步中。当达到指定的迭代次数后停止并输出。\\
+\caption{Nash GA运行示意图}
+\end{figure}
+
+\indent 因此，该问题的解决思路是先从一个给定的初始值开始，然后针对每个变量分别运行一次针对一元函数的遗传优化算法，对每个变量都优化过后再将结果汇总，带入到下一个迭代步中。当达到指定的迭代次数后停止并输出。
 
 \subsection{编程实现}
-本例采用单线程算法，便于同步输出。\\
-为了便于调用，本例中将针对一元函数的遗传优化算法封装到一个函数中，这样在主函数中直接传入参数并调用即可。\\
-另一个不同于前面两个程序的地方是自变量的管理，从可扩展性考虑，Nash GA算法可以用于多变量，因此求目标值的函数所接收的变量形式改为$std::vector<double>$,同时也便于动态增减元素，目标函数在染色体对象被构造时以函数指针的形式传入其中，如下所示：
+本实验既可用单线程程序实现也可以使用多线程程序实现。多线程程序意义明显，每一个线程对应一个玩家，初始时只需指定玩家编号，但在运行过程中要注意同步，两个玩家之间的要协调运行，防止出现data race或乱序。简单起见，本文只介绍单线程的程序。\\
+\indent 为了便于调用，本例中将针对一元函数的遗传优化算法封装到一个函数中，这样在主函数中直接传入参数并调用即可。\\
+\indent 另一个不同于前面两个程序的地方是自变量的管理，从可扩展性考虑，Nash GA算法可以用于多变量，因此求目标值的函数所接收的变量形式改为$std::vector<double>$,同时也便于动态增减元素，目标函数在染色体对象被构造时以函数指针的形式传入其中，如下所示：
 \begin{lstlisting}
-/*Definition of the pointer to object function*/
+/*Definition of object function pointer*/
 typedef double(*ObjFuncPtr)(const vector<double> &);
-
-/*constructor for chromosome*/
-chromosome(const ObjFuncPtr &_f, 
-	  const vector<double> &_var, 
-	  size_t _self, size_t _len);
 \end{lstlisting}
-同时在染色体对象内部也用$std::vector<double>$来存储自变量，这样便统一了接口。\\
+
+\indent 同时在染色体对象内部也用$std::vector<double>$来存储自变量，这样便统一了接口。
+\clearpage
+
 \indent 主函数的执行流程如下：
 \begin{lstlisting}
-/*Let user specify the arguments*/
 Input();
 
-/*Iteration*/
-for(size_t i=0;i<RoundCnt;i++)
-{
-	for(size_t k=0;k<varCnt;k++)
-	{
+for(size_t i=0;i<RoundCnt;i++)//Iteration
+	for(size_t k=0;k<varCnt;k++)//Optimize each variable
 		GA_Solver(F,local_var[k],k);
 
-		/*Output current optimial*/
-		OutPut();
-	}
-}
+Output();
 \end{lstlisting}
-\indent 其中$GA_Solver$的定义如下：
+
+\indent 其中，$GA\_Solver$的定义如下：
 \begin{lstlisting}
-/*Definition of GA_Solver*/
 void GA_Solver(ObjFuncPtr func, vector<double> &var, size_t self);
 \end{lstlisting}
 
 \subsection{运行结果与分析}
 \indent 本实验的参数取值如下：
-\begin{center}
+\begin{table}[htbp]\centering
 \begin{tabular}{cc}
   \toprule
   参数 & 值 \\
@@ -248,31 +245,28 @@ void GA_Solver(ObjFuncPtr func, vector<double> &var, size_t self);
   自变量$x_1$精度 & 0.000732422\\
   自变量$x_2$精度 & 0.000732422\\
   种群规模   & 200 \\
-  迭代次数   & 50 \\
+  迭代次数   & 60 \\
   交叉概率   & 0.65 \\
   变异概率   & 0.001 \\
   \bottomrule
 \end{tabular}
-\end{center}
-得到的结果如下图所示：
-\begin{center}
-\end{center}
+\end{table}
 
-\indent 从实验结果可知,虽然给定的初始值是在一个局部最优的位置，但是Nash GA仍然能够将搜索范围拓展到全局并进而找到全局最优解$x=1,y=2$，虽然收敛的速度比起前两例
-慢了一些，但这揭示了一种多目标优化的方法，且利用Nash均衡处理得到的解空间具有一定的性质，同时具有理论和实践上的意义！
+\indent 得到的结果如下图所示：
+\begin{figure}[htbp]\centering
+\includegraphics[width=9cm,height=8cm]{../pic/T2_res_f.png}
+\caption{Nash GA优化二元函数结果}
+\end{figure}
+
+\indent 从实验结果可知,虽然给定的初始值是在一个局部最优的位置，但是Nash GA仍然能够将搜索范围拓展到全局并进而找到全局最优解$x=1,y=2$，两个Player交替落到最小值处，最终趋于稳定。虽然收敛的速度比起前两例慢了一些，但这揭示了一种多目标优化的方法，且利用Nash均衡处理得到的解空间具有一定的性质，同时具有理论和实践上的意义！
 
 \section{程序运行说明}
-本实验采用的开发环境是Visual\ Studio\ 2013，源码也可以在Linux或Mac上编译运行。\\
-\indent 在Windows平台下使用时只需运行Release目录下相应的exe文件即可。由于输出文件的路径在源码中是固定的，请保持文件结构，勿将exe文件移出Release文件夹或修改其它文件夹\\
-\indent 由于程序中大量使用了STL中的容器类、泛型算法以及一些C++11中的语言特性，请确保编译器支持C++11。\\
+直接运行src文件夹下对应的exe文件即可。\\
+\indent 由于输出文件的路径在源码中是固定的，请保持文件结构，勿将exe文件移出src文件夹或修改其它文件夹！\\
+\indent 若要编译源码，请使用支持C++11的编译器。对于Task2的多线程版本的程序，请确保编译器支持STL中多线程部分的头文件。
 
 \section{总结}
 本实验探究了遗传算法在函数优化中的应用，先用经典的遗传算法分别考察了针对一元函数和二元函数的优化问题，发现遗传算法能够较快地收敛到最优点，且没有早熟或振荡现象。\\
 \indent 同时还探究了Nash GA，并用其处理了一个二元函数的优化问题，结果表明Nash GA同样能够获得相当好的收敛速度和精度，虽然在搜索方式上不同于经典的遗传算法，但是Nash GA同样具有全局搜索的能力，且搜索更具针对性，这为多目标优化问题提供了一种不一样的思路。
-
-\clearpage
-
-\addcontentsline{toc}{section}{参考文献}
-\bibliography{ga}
 
 \end{document}
