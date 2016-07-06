@@ -1,14 +1,16 @@
 #include <iostream>
-#include<fstream>
+#include <fstream>
 #include <iomanip>
 #include <cstring>
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <ctime>
 #include <numeric>
 #include <limits>
 #include <cassert>
-#include "./Eigen/Dense"
+#include <Eigen/Dense>
 
 using namespace std;
 
@@ -26,26 +28,27 @@ const int reverse_dir[Q] = { 0,3,4,1,2,7,8,5,6 };
 const double cs_square = 1.0 / 3;
 
 //流场尺寸与网格定义
-double radius = 0.5;
-double ratio = 50;
-int MeshType = 1;
-double min_gap = radius / 100;
-double min_angle = 2;
-int N = 120;
-int M = 360/min_angle;
-double cha = 1.2;
-double dt = 0.8*(radius*min_angle*pi / 180);
+const double radius = 0.5;
+const double ratio = 50;
+const int MeshType = 1;
+const double min_gap = radius / 100;
+const double min_angle = 1.5;
+const int N = 120;
+const int M = 360/min_angle;
+const double cha = 1.2;
+const double dt = 0.8*(radius*min_angle*pi / 180.0);
 
 //流场初始变量
-double Ma = 0.1;
-int STEPS = 6000;
-double DENSITY = 1.0;
-double U = Ma*sqrt(cs_square);
-double V = 0.0;
-double Re = 200;
-double dynamic_vis = U*radius * 2 / Re;
-double vis = DENSITY*dynamic_vis;
-double tau = 3 * dynamic_vis / dt + 0.5;
+const double Ma = 0.1;
+const int STEPS = 3000;
+const double DENSITY = 1.0;
+const double U = Ma*sqrt(cs_square);
+const double V = 0.0;
+const double Re = 200;
+const double dynamic_vis = U*radius * 2 / Re;
+const double vis = DENSITY*dynamic_vis;
+const double tau = 3 * dynamic_vis / dt + 0.5;
+const double I = 0.01;//紊流度
 
 //残差
 double err_vel = 1.0;
@@ -217,6 +220,27 @@ int main(int argc, char **argv)
 	ofstream ad("aerodynamics.dat"); 
 	ofstream msh("mesh.dat");
 
+	srand(time(NULL));
+
+	//设置一定的紊流度
+	for (int i = 2; i < node.size(); i++)
+	{
+		for (int j = 0; j < node[i].size(); j++)
+		{
+			//node[i][j].u += (I*U)*(-1 + 2 * (rand() % 100) *0.01);
+			node[i][j].v += (I*U)*(-1 + 2 * (rand() % 100) *0.01);
+		}
+	}
+
+	/*
+	for (int i = 1; i < node.size(); i++)
+	{
+		cerr << "Layer " << i << ":" << endl;
+		for (int j = 0; j < node[i].size(); j++)
+			cerr << node[i][j].u << " " << node[i][j].v << endl;
+	}
+	*/
+
 	//壁面速度
 	for (int j = 0; j < M; j++)
 		node[1][j].setVelocity(0, 0);
@@ -381,7 +405,7 @@ void calcResidue(const vector<vector<LBM_Node>> &mesh)
 	
 	for (int i = 1; i < mesh.size(); i++)
 	{
-		for (int j = 0; j < mesh[1].size(); j++)
+		for (int j = 0; j < mesh[i].size(); j++)
 		{
 			e1 += mesh[i][j].getVelocityDiff();
 			e2 += mesh[i][j].getVelocity();
@@ -412,19 +436,20 @@ void calcAerodynamics(const vector<vector<LBM_Node>> &mesh)
 		double mid_x = (mesh[1][curIndex].x + mesh[1][nextIndex].x) / 2;
 		double mid_y = (mesh[1][curIndex].y + mesh[1][nextIndex].y) / 2;
 
-		double theta = mid_y / mid_x;
-		double f = p_av*len;
-		Fx += f*(-cos(theta));
-		Fy += f*(-sin(theta));
+		double f = -p_av*len;
+
+		Fx += f*mid_x / sqrt(pow(mid_x, 2) + pow(mid_y, 2));
+		Fy += f*mid_y / sqrt(pow(mid_x, 2) + pow(mid_y, 2));
 	}
 
 	//切向的粘性力
 	for (int i = 0; i < mesh[1].size(); i++)
 	{
-		double theta = mesh[1][i].y / mesh[1][i].x;
+		double sin_theta = mesh[1][i].y / sqrt(pow(mesh[1][i].x, 2) + pow(mesh[1][i].y, 2));
+		double cos_theta = mesh[1][i].x / sqrt(pow(mesh[1][i].x, 2) + pow(mesh[1][i].y, 2));
 
-		double vel1_t = -mesh[2][i].u*sin(theta) + mesh[2][i].v*cos(theta);
-		double vel2_t = -mesh[3][i].u*sin(theta) + mesh[3][i].v*cos(theta);
+		double vel1_t = -mesh[2][i].u*sin_theta + mesh[2][i].v*cos_theta;
+		double vel2_t = -mesh[3][i].u*sin_theta + mesh[3][i].v*cos_theta;
 
 		double d1 = sqrt(pow(mesh[2][i].x - mesh[1][i].x, 2) + pow(mesh[2][i].y - mesh[1][i].y, 2));
 		double d2 = sqrt(pow(mesh[3][i].x - mesh[1][i].x, 2) + pow(mesh[3][i].y - mesh[1][i].y, 2));
@@ -433,8 +458,8 @@ void calcAerodynamics(const vector<vector<LBM_Node>> &mesh)
 
 		double f = vis*a1*(radius*min_angle*pi / 180);
 
-		Fx += f*(-sin(theta));
-		Fy += f*cos(theta);
+		Fx += f*(-sin_theta);
+		Fy += f*cos_theta;
 	}
 
 	CD = Fx / (0.5*DENSITY*U*U);
