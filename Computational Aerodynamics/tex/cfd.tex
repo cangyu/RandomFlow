@@ -42,16 +42,41 @@
 本文采用Jameson中心格式来求解二维Euler方程。在空间离散上采用的是有限体积法，时间上采用的是四步显式Runge－Kutta迭代求得最后的定常解。人工耗散项为守恒变量的二阶和四阶差分项。边界条件采用的是无反射边界条件，并采用当地时间步长进行加速收敛。
 
 \subsection{基本方程}
-由于不考虑粘性，二维NS方程可简化为Euler方程。欧拉方程是质量，动量，能量守恒定理的表达。在边界为S，体积为Ω的二维区域，方程可以写成以下形式：
+由于不考虑粘性，二维NS方程可简化为Euler方程。欧拉方程是质量，动量，能量守恒定理的表达。在边界为S，面积为Ω的二维区域，方程可以写成以下形式：
 \begin{equation}
+\frac{\partial}{\partial t} \iint_{\Omega} W d\Omega + \int_{S} (Fdy-Gdx) = 0
+\end{equation}
 
+\indent 其中，$x,y$是笛卡尔坐标，$W$是守恒量矢量，$F,G$是流动矢量，具体形式如下：
+\begin{equation}
+W={\begin{bmatrix} \rho \ \rho U \ \rho V \ \rho E \end{bmatrix}}^\mathrm{T}
+\end{equation}
+
+\begin{equation}
+F={\begin{bmatrix} \rho U \ \rho U^2 + P \ \rho UV \ \rho UH \end{bmatrix}}^\mathrm{T}
+\end{equation}
+
+\begin{equation}
+G={\begin{bmatrix} \rho V \ \rho UV \ \rho V^2 + P \ \rho VH \end{bmatrix}}^\mathrm{T}
+\end{equation}
+
+\indent $\rho,P,H,E$分别是密度，压强，单位质量总焓和单位质量总能量；$U,V$是速度矢量的笛卡尔坐标系下的分量。这些变量之间的关系如下：
+\begin{equation}
+\rho E=P/(\gamma-1)+\rho (U^2+V^2)/2
+\end{equation}
+
+\begin{equation}
+\rho H=\rho E + P
 \end{equation}
 
 \subsection{空间离散}
+计算区域被划分为有限数量的非重叠单元，并且积分形式的守恒方程应用到每个单元。因为考虑到时间，任何单元的体积都可视作常数,
+
+\subsection{人工耗散}
 
 \subsection{时间离散}
 
-\subsection{人工耗散}
+\subsection{边界条件}
 
 \section{编程实现}
 
@@ -62,8 +87,6 @@
 \section{结果分析}
 
 \subsection{Ma=0.3}
-
-
 
 \subsection{Ma=0.8}
 
