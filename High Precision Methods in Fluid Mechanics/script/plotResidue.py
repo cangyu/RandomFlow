@@ -35,8 +35,11 @@ for file in results:
         err_vel.append(ev)
         err_rho.append(er)
 
-    plt.plot(index,err_vel)
-    plt.plot(index,err_rho)
+    plt.plot(index,err_vel,label="Velocity")
+    plt.plot(index,err_rho,label="Density")
+    plt.legend()
+    plt.xlabel("Iteration Step")
+    plt.ylabel("Residual")
     plt.savefig(residue[cnt])
     plt.close()
     data.close()
