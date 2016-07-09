@@ -32,9 +32,9 @@
 
 \section{问题描述}
 求解无粘条件下NACA0012翼型的2维平面流场。流场网格是由三角形单元组成的非结构网格，使用有限体积方法求解流场的2维Euler方程。网格文件为data文件夹下的naca0012.grd文件。全流场的网格如下左图所示，右图是翼型周围的网格：
-\begin{figure}[htbp]
-\centering\includegraphics[width=5.5cm,height=4.5cm]{../data/mesh_naca0012.png}
-\centering\includegraphics[width=5.5cm,height=4.5cm]{../data/mesh_naca0012_local.png}
+\begin{figure}[htbp]\centering
+\includegraphics[width=5.5cm,height=4.5cm]{../data/mesh_naca0012.png}
+\includegraphics[width=5.5cm,height=4.5cm]{../data/mesh_naca0012_local.png}
 \caption{用于NACA0012翼型的非结构网格}
 \end{figure}
 
@@ -43,7 +43,7 @@
 
 \subsection{基本方程}
 由于不考虑粘性，二维NS方程可简化为Euler方程。欧拉方程是质量，动量，能量守恒定理的表达。在边界为S，面积为Ω的二维区域，方程可以写成以下形式：
-\begin{equation}
+\begin{equation}\label{euler}
 \frac{\partial}{\partial t} \iint_{\Omega} W d\Omega + \int_{S} (Fdy-Gdx) = 0
 \end{equation}
 
@@ -70,11 +70,142 @@ G={\begin{bmatrix} \rho V \ \rho UV \ \rho V^2 + P \ \rho VH \end{bmatrix}}^\mat
 \end{equation}
 
 \subsection{空间离散}
-计算区域被划分为有限数量的非重叠单元，并且积分形式的守恒方程应用到每个单元。因为考虑到时间，任何单元的体积都可视作常数,
+计算区域被划分为有限数量的非重叠单元，并且积分形式的守恒方程应用到每个单元。单元的一般形状如下图所示：
+\begin{figure}[htbp]\centering\label{cell}
+\includegraphics[width=6.5cm,height=4.5cm]{../data/cell.jpg}
+\caption{离散的单元示意图}
+\end{figure}
+
+\indent 因为考虑到时间，任何单元的体积都可视作常数,所以\eqref{euler}可写成如下形式：
+\begin{equation}\label{discrete}
+\frac{\partial W}{\partial t} = - \frac{\int_S (Fdy-Gdx)}{\iint_{\Omega} d\Omega}
+\end{equation}
+
+\indent 对于任一单元k，\eqref{discrete}可写成如下形式：
+\begin{equation}\label{cell_discrete}
+\frac{\partial W_k}{\partial t} = - \frac{Q_k}{\Omega_k}
+\end{equation}
+
+\indent 其中，$\Omega_k, W_k, Q_k$分别是单元k的面积、守恒量矢量和\eqref{discrete}右边部分流动积分的离散近似值。\\
+\indent $\Omega_k$在网格输入文件中给出，$Q_k$由以下近似给出：
+\begin{equation}\label{Q_k}
+Q_k=\sum_{i=1}^{edgeNum} (Fdy-Gdx)_i 
+\end{equation}
+
+\indent $dx,dy$为每边在坐标轴上的分量，按右手定则确定每条边的正方向，$a,b$分别为每条边的起点和终点，计算规则如下：
+\begin{equation}
+dx_i=x_b-x_a 
+\end{equation}
+\begin{equation}
+dy_i=y_b-y_a
+\end{equation}
+
+\indent 为了计算出每条边上的流动矢量$F,G$，需要知道该边上的守恒量$W_i$,$W_i$由下式近似计算得到：
+\begin{equation}\label{W_i}
+W_i=(W_k+W_p)/2
+\end{equation}
+
+\indent \eqref{W_i}中的$W_k,W_p$分别为Fig\ref{cell}中的左右单元中心处的守恒矢量，从中也可见边的正方向的定义。\\
+\indent 为了在计算过程中避免重复计算，我们引入如下辅助变量：
+\begin{equation}\label{aid_var}
+Z_i=U_i dy_i - V_i dx_i
+\end{equation}
+
+\indent 对任一单元k，式\eqref{cell_discrete}可写成如下形式：
+\begin{equation}
+\frac{\partial W_k}{\partial t} = - \frac{1}{\Omega_k} \sum_{i=1}^{edgeNum}
+ {\begin{bmatrix} \rho Z \ \rho UZ+Pdy \ \rho VZ-Pdx \ \rho HZ \end{bmatrix}}^\mathrm{T}
+\end{equation}
+
+\indent 对于非结构网格，从边的角度入手来计算每个单元上的守恒矢量的变化量能避免重复计算，且对于网格形状来说具有通用性。
 
 \subsection{人工耗散}
 
+上述单元中心方案是非耗散的，所以任何误差（耗散误差，round-off误差）是没有被考虑进去的，并且振动可能在稳态解中出现。为了消除这些振动，人工耗散项被添加到式\eqref{cell_discrete}的右边部分，对于单元k，式\eqref{cell_discrete}变成如下形式：
+
+\begin{equation}\label{aritificial_dissipation}
+\frac{\partial W_k}{\partial t} = - \frac{(Q_k-D_k)}{\Omega_k}
+\end{equation}
+
+\indent 在现行工作中，$D_k$被构建成保守变量$W_k$二阶微分和四阶微分的混和。$W_k$的四阶微分的部分被加到平滑的流动区域，但在有激波的区域不起作用，此时$W_k$的二阶微分项被接通用来抑制激波周围的振动，这项可以是相当大的。这种转换通过基于当地压强的二阶微分的激振感应器来获得。$D_k$的计算方法如下：
+
+\begin{equation}
+D_k=\sum_{i=1}^{edgeNum}d_{i}^{(2)}+\sum_{i=1}^{edgeNum}d_{i}^{(4)}
+\end{equation}
+
+\indent 对于非结构网格，每条边上的保守变量的二阶和四阶微分由下式计算：
+
+\begin{equation}
+d_{i}^{(2)}=\alpha_i \varepsilon_{i}^{(2)} (W_p-W_k)
+\end{equation}
+
+\begin{equation}
+d_{i}^{(4)}=-\alpha_i \varepsilon_{i}^{(4)} (\nabla^{2}W_p-\nabla^{2}W_k)
+\end{equation}
+
+\indent 在这里指标i是划分单元k和p的边，$\nabla^{2}W_k$由下式计算得出：
+
+\begin{equation}
+\nabla^{2}W_k=\sum_{j=1}^{edgeNum}(W_j-W_k)
+\end{equation}
+
+\indent 这里$W_j$指的是与单元k相邻的单元上的守恒矢量，而不是单元k的边界上的守恒矢量。\\
+\indent 在现今的工作中,$\varepsilon_{i}^{(2)}$和$\varepsilon_{i}^{(4)}$由如下的一种简单方式构造得出：
+
+\begin{equation}
+\varepsilon_{i}^{(2)}=k^{(2)}\nu_i
+\end{equation}
+
+\begin{equation}
+\varepsilon_{i}^{(4)}=\max(0,k^{(4)}-\varepsilon_{i}^{(2)})
+\end{equation}
+
+\indent 这里$k^{(2)}$和$k^{(4)}$是两个由经验得出的常数，数值的典型范围是$1/256<k^{(2)}<1/32$和$1/2<k^{(4)}<10$。\\
+\indent $\nu_i$是激振感应器，$\alpha_i$是缩放比例因子，在现今的工作中，激振感应和缩放比例因子在边的基础上构造，只使用两个相邻单元k和p的流动变量，计算形式如下：
+
+\begin{equation}
+\nu_i=\frac{\left|P_p-P_k\right|}{\left|P_p+P_k\right|}
+\end{equation}
+
+\begin{equation}\label{suofangyinzi}
+\alpha_i=\left|Udy-Vdx\right|+c\sqrt{{dx}^2+{dy}^2}
+\end{equation}
+
+\indent 这里U，V和c分别是分界边上的速度与当地声速。\\
+\indent 在边界附近（有效边界和外边界）对耗散项不正确的处理将导致解精度的严重损失。添加用来抑制振动的耗散项可以变得过于强，局部地，数值方案的顺序可被简化。从物理的观点来看，这种强耗散在边界附近产生了大量的伪数值熵。这引起了翼型表面的压强损失，而且积分载荷也会不正确。
+
 \subsection{时间离散}
+稳态解是通过对大系统的常微分方程的时间积分所得到的，可以写成如下形式：
+\begin{equation}\label{time_discrete}
+\frac{dW_k}{dt}=-\frac{Q_k-D_k}{\Omega_k} \equiv R_k
+\end{equation}
+
+\indent 其中$R_k$代表每个单元中心k的剩余误差（稳态解的偏移）。\\
+\indent 方程\eqref{time_discrete}中的时间积分采用了四步Runge-Kutta方案。因为时间的精确度对于稳态解来说并不重要，这类方案只用于求解稳态的流场和稳定的阻尼特性。本文采用如下实施方案：
+\begin{equation}\label{runge-kutta}
+\left\{
+\begin{aligned}
+W^{(0)} &= W^n \\
+W^{(m)} &= W^{(0)}+\alpha_m \Delta t R^{(m-1)},m=1...4 \\
+W^{n+1} &= W^{(4)}\\
+\end{aligned}
+\right.
+\end{equation}
+
+\indent 在这里n是当前时间步，n+1是下一个时间步。由于目前的计算机的计算能力相比于上世纪90年代有了长足的进步，而且计算耗散函数$D^{(m)}$的时间复杂度是$O(N)$，因此本文在迭代过程中的每一步都更新$D^{(m)}$,最终$R^{(m)}$由下式计算：
+\begin{equation}\label{residual}
+R^{(m)}=-\frac{Q^{(m)}-D^{(m)}}{\Omega}
+\end{equation}
+
+\indent 方程组\eqref{runge-kutta}中的系数$\alpha_m$取值如下：
+\[	\alpha_1=1/4,\ \alpha_2=1/3,\ \alpha_3=1/2,\ \alpha_4=1 \]
+
+\indent 由于最终只要得到稳态解，为了加速计算，每个单元可以采用当地时间步长而非全局统一的时间步长。对于有任意形状单元的网格，单元k的当地时间步长可采用以下形式计算：
+\begin{equation}\label{local_timestep}
+\Delta t_k=\frac{\Omega_k CFL}{\sum_{i=1}^{edgeNum}\alpha_i}
+\end{equation}
+
+\indent 其中，$\alpha_i$是每条边上的缩放因子，由式\eqref{suofangyinzi}计算得出。
 
 \subsection{边界条件}
 
