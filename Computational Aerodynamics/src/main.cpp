@@ -517,59 +517,6 @@ vector<Edge> edge;
 
 int main(int argc, char **argv)
 {
-    //输入参数
-	cout << "请输入来流参数：" << endl;
-	cout << "Ma(e.g. 0.8):"; cin >> Ma;
-	cout << "迎角（e.g. 3）："; cin >> angle_of_attack;
-	cout << "来流静压（e.g. 101325.0）："; cin >> p_inf;
-	cout <<	"来流密度（e.g. 1.225）："; cin >> rho_inf;
-	cout <<	"CFL（e.g. 1.2）："; cin >> CFL;
-	cout <<	"k2（e.g. 0.5～10）："; cin >> k2;
-	cout <<	"k4（e.g. 0.00374～0.03125）："; cin >> k4;
-	cout <<	"迭代步数（e.g. 2000）："; cin >> STEP;
-	cout << endl;
-
-	c_inf = sqrt(gama*p_inf / rho_inf);//来流音速，无粘，用等熵关系式
-	u_inf = Ma*c_inf*cos(angle_of_attack*pi / 180);
-	v_inf = Ma*c_inf*sin(angle_of_attack*pi / 180);
-	s_inf = p_inf / pow(rho_inf, gama);
-	ke_inf = 0.5*rho_inf*pow(Ma*c_inf, 2);
-
-	w_inf=vector<double>
-	{ 
-		rho_inf,
-		rho_inf*u_inf,
-		rho_inf*v_inf,
-		p_inf / (gama - 1) + rho_inf*(pow(u_inf,2) + pow(v_inf,2))*0.5 
-	};
-	primitives_inf=vector<double>
-	{
-		rho_inf,
-		u_inf,
-		v_inf,
-		p_inf
-	};
-   
-    assert(mesh);
-   
-    stringstream ss;
-    ss<<"../result/"<<Ma<<'_'<<angle_of_attack<<'_';
-    
-    string f1(ss.str());
-    f1.append("convergence_history.dat");
-    conv.open(f1);
-    assert(conv);
-    
-    string f2(ss.str());
-    f2.append("flow_field.dat");
-    flow.open(f2);
-    assert(flow);
-
-    string f3(ss.str());
-    f3.append("pressure_distribution.dat");
-    pd.open(f3);
-    assert(pd);
-
 	//读入网格数据并初始化
 	Init();
 
@@ -606,6 +553,60 @@ void convertToConservativeVar(vector<double> &primitive, vector<double> &conserv
 
 void Init()
 {
+    //输入参数
+	cout << "请输入来流参数：" << endl;
+	cout << "Ma(e.g. 0.8):"; cin >> Ma;
+	cout << "迎角（e.g. 3）："; cin >> angle_of_attack;
+	cout << "来流静压（e.g. 101325.0）："; cin >> p_inf;
+	cout <<	"来流密度（e.g. 1.225）："; cin >> rho_inf;
+	cout <<	"CFL（e.g. 1.2）："; cin >> CFL;
+	cout <<	"k2（e.g. 0.5～10）："; cin >> k2;
+	cout <<	"k4（e.g. 0.00374～0.03125）："; cin >> k4;
+	cout <<	"迭代步数（e.g. 2000）："; cin >> STEP;
+	cout << endl;
+
+	c_inf = sqrt(gama*p_inf / rho_inf);//来流音速，无粘，用等熵关系式
+	u_inf = Ma*c_inf*cos(angle_of_attack*pi / 180);
+	v_inf = Ma*c_inf*sin(angle_of_attack*pi / 180);
+	s_inf = p_inf / pow(rho_inf, gama);
+	ke_inf = 0.5*rho_inf*pow(Ma*c_inf, 2);
+
+	w_inf=vector<double>
+	{ 
+		rho_inf,
+		rho_inf*u_inf,
+		rho_inf*v_inf,
+		p_inf / (gama - 1) + rho_inf*(pow(u_inf,2) + pow(v_inf,2))*0.5 
+	};
+	primitives_inf=vector<double>
+	{
+		rho_inf,
+		u_inf,
+		v_inf,
+		p_inf
+	};
+   
+    assert(mesh);
+    
+    //构造输出文件
+    stringstream ss;
+    ss<<"../result/"<<Ma<<'_'<<angle_of_attack<<'_';
+    
+    string f1(ss.str());
+    f1.append("convergence_history.dat");
+    conv.open(f1);
+    assert(conv);
+    
+    string f2(ss.str());
+    f2.append("flow_field.dat");
+    flow.open(f2);
+    assert(flow);
+
+    string f3(ss.str());
+    f3.append("pressure_distribution.dat");
+    pd.open(f3);
+    assert(pd);
+    
 	//输入网格，在构造函数中设置初值
 	mesh >> cnt_point >> cnt_edge >> cnt_cell;
 

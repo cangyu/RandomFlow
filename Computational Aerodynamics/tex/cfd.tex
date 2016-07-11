@@ -7,6 +7,8 @@
 \usepackage{cite}
 \usepackage{booktabs}
 \usepackage{listings}
+\usepackage{color}
+\usepackage{xcolor}
 \usepackage{titletoc}
 
 \lstset{language=C++}
@@ -209,11 +211,156 @@ R^{(m)}=-\frac{Q^{(m)}-D^{(m)}}{\Omega}
 
 \subsection{边界条件}
 
+对于物面，由于是无粘流动，所以边界上的速度只需满足“法向无穿透，切向滑移”即可。同时，壁面压强被等同于相邻的边界单元中心处压强。大量数值研究发现如果相邻于表面的单元足够小，并且如果人工耗散项被正确处理，这种对压强的弱条件的使用并不会对解的精度有很大影响。\\
+\indent 对于远场边界，要求没有流出波再被反弹回计算区域。接下去是Jameson和Baker的方法，对于边界的法向流动，基于Riemann守恒，组成局域一维理论。本文采用的是Jameson的远场无反射边界条件（扰动波不反射回流场）。具体实施如下：\\
+\indent $R^+,R^-$是两个Riemann不变量，取值如下：
+\begin{equation}\label{r_plus}
+R^+=V_{ne}+\frac{2c_e}{\gamma-1}
+\end{equation}
+\begin{equation}\label{r_minus}
+R^-=V_{n\infty}-\frac{2c_\infty}{\gamma-1}
+\end{equation}
+
+\indent 其中，下标n表示法向值，$\infty$表示来流值，e表示由该边紧邻的单元上的流动变量外插得到的值（即近似认为边界上的值为相邻单元中对应的物理量的值），边界上的法向速度$V_n$和音速$c$可以由这两个Riemann不变量求得：
+\begin{equation}\label{vn}
+V_n=\frac{1}{2} (R^+ + R^-)
+\end{equation}
+\begin{equation}\label{c}
+c=\frac{\gamma-1}{4} (R^+ - R^-)
+\end{equation}
+
+\indent 可以将远场边界条件分为如下4种情况：
+\begin{enumerate}[(1)]
+\item 亚音速入流$(M_{n\infty}<1,V_{ne}<0)$
+\begin{equation}\label{yaru}
+\begin{aligned}
+V_n &= \frac{1}{2} (R^+ + R^-) \\
+V_t &= V_{t\infty} \\
+c &= \frac{\gamma-1}{4} (R^+ - R^-) \\
+s &= s_\infty \\
+\end{aligned}
+\end{equation}
+
+\item 亚音速出流$(M_{n\infty}<1,V_{ne}>0)$
+\begin{equation}\label{yachu}
+\begin{aligned}
+V_n &= \frac{1}{2} (R^+ + R^-) \\
+V_t &= V_{te} \\
+c &= \frac{\gamma-1}{4} (R^+ - R^-) \\
+s &= s_e \\
+\end{aligned}
+\end{equation}
+
+\item 超音速入流$(M_{n\infty}>1,V_{ne}<0)$
+\begin{equation}\label{chaoru}
+\begin{aligned}
+\rho &= \rho_\infty \\
+u &= u_\infty \\
+v &= v_\infty \\
+p &= p_\infty \\
+\end{aligned}
+\end{equation}
+
+\item 超音速出流$(M_{n\infty}>1,V_{ne}>0)$
+\begin{equation}\label{chaochu}
+\begin{aligned}
+\rho &= \rho_e \\
+u &= u_e \\
+v &= v_e \\
+p &= p_e \\
+\end{aligned}
+\end{equation}
+
+\end{enumerate}
+
+\indent 根据上述值可以计算出边界上的各个物理量的值，进一步可以计算出远场边界上守恒量的值。
+
 \section{编程实现}
+\subsection{网格文件说明}
+给定的计算网格是以三角形为基本单元的非结构网格，网格文件第一行是3个整数，分别表示节点的个数、边的个数和单元的个数。接下来依次给出每个点的x,y坐标。\\
+\indent 紧接着，输入文件依次次给出每条边的起点序号、终点序号、该边左边单元的序号和该边右边单元的序号，输入文件保证左单元的序号一定是正的，也即正方向由右手定则确定，右单元的序号可能是负的，若为-1则表示该边是物面边，若为-2则表示该边是远场边。由于输入文件中的序号都是以1为起始序号的，为了计算方便，本文在程序中统一将其转换为以0为起始序号。\\
+\indent 最后，输入文件依次给出每个单元的信息,每行给出该单元3个顶点的序号，这些顶点序号仍然是以1为起始的，同样，我们将其转换为以0为起始的。
 
 \subsection{数据存储结构}
+显然，节点、边和单元是程序的基本组成部分。本程序使用C++实现，采用面向对象的方法为节点、边和单元建模，将其分别处理成一个类，在类中封装了相应的属性信息和方法。具体实现如下：\\
+\indent 节点的属性较为简单，只需存储坐标即可。
+\begin{lstlisting}[numbers=left, numberstyle=\tiny, keywordstyle=\color{blue!70}, commentstyle=\color{red!50!green!50!blue!50}, frame=shadowbox, rulesepcolor=\color{red!20!green!20!blue!20}]
+class Point//只列出与流动计算相关部分，未显示出构造函数等信息
+{
+public:
+	vector<double> coordinate;
+
+	double DistanceTo(const Point &rhs) const;//到另一点的几何距离
+	vector<double> DeltaTo(const Point &rhs) const;//到另一点的矢量
+};
+\end{lstlisting}
+
+\indent 单元上的信息相对边要少一些，除了基本的顶点信息和单元中心处的流动变量，还存放了一定辅助量用于计算残差和Runge-Kutta迭代，主要部分如下：
+
+\begin{lstlisting}[numbers=left, numberstyle=\tiny, keywordstyle=\color{blue!70}, commentstyle=\color{red!50!green!50!blue!50}, frame=shadowbox, rulesepcolor=\color{red!20!green!20!blue!20}]
+class Cell//只列出与流动计算相关部分，未显示出构造函数等信息
+{
+public:
+	vector<int> point;//顶点序号集
+	double volum;//单元面积
+	vector<double> w;//rho,rho*u,rho*v,rho*E
+	vector<double> w_next;
+	vector<double> physicalVar;//rho,u,v,p
+	vector<double> pre_physicalVar;
+	double localTimeStep;
+	vector<double> Q;//cell的对流通量
+	vector<double> D;//cell的耗散通量
+	vector<double> ddw;//守恒量w_next的Laplace
+
+	void updatePrevRecord();
+	double getDensity() const;
+	double getDensityDiff() const;
+	double getVelocity() const;
+	double getVelocityDiff() const;
+	double getPressure() const;
+	double getPressureDiff() const;
+};
+\end{lstlisting}
+
+\indent 边的属性较为复杂，不仅包含了构成边的基本信息，还要存储很多流场中的物理量的信息和人工耗散项的信息，同时为了加速计算，采用了一定程度的“空间换时间”策略，保存了每条边的长度、向量表示、单位外法向量等用于加速计算的辅助信息。
+
+\begin{lstlisting}[numbers=left, numberstyle=\tiny, keywordstyle=\color{blue!70}, commentstyle=\color{red!50!green!50!blue!50}, frame=shadowbox, rulesepcolor=\color{red!20!green!20!blue!20}]
+class Edge//只列出与流动计算相关部分，未显示出构造函数等信息
+{
+private:
+	void calcFarBound();//根据无反射边界条件计算远场边,得到w_av,rho,u,v,p,c
+public:
+	int start, end;
+	int leftCell, rightCell;
+	double len;
+	vector<double> delta;
+	vector<double> delta_n;//单位外法向量(右手)
+	vector<double> w_av;//两边单元的物理量的平均
+	vector<double> physicalVar;//边上的物理量：rho,u,v,p
+	double c;//当地声速
+	double Z;//用于辅助计算
+	vector<double> convective_flux;//该边上的对流通量
+	vector<double> w_diff;//两边单元物理量之差(右-左)，没有右则不算
+	double ScalingFactor;//谱半径*边长+fabs(Z)
+	double v;//激波探测器
+	double eps2, eps4;//流场探测器
+	vector<double> d2, d4;//components of the dissipation_flux
+
+	Point getMidPoint() const;//取得中点
+	void calcBasicVariables();//计算该边上的w_av，根据不同类型做不同处理
+	void calcConvection();//计算该边上的对流通量Q
+	void addConvectionToAdjcentCell();//将该边上的对流通量Q累加到相关联的cell
+	void calc_d4();//计算d4
+	void addDissipationToAdjcentCell();//将该边上的耗散通量D累加到相关联的cell
+};
+\end{lstlisting}
 
 \subsection{程序流程}
+程序主要分3步：首先读入网格并初始化流场变量，然后按设定的最大迭代次数做Runge-Kutta迭代进行时间推进，最后到达指定迭代步数或残差收敛到一定量级后输出结果。\\
+\indent 初始化的过程中提示用户输入来流数据，如马赫数、攻角、静压和密度等物理量，然后构造格式化的输出文件并读入网格信息。\\
+\indent 输出阶段则将最终流场结果按照Tecplot的数据格式要求进行输出，同时计算翼型上下表面的压力分布，并输出到相应的文件中。\\
+\indent 时间推进过程是本算法的核心所在。在每个时间步中先进行预处理，然后做Runge-Kutta迭代，最后输出当前时间步计算得到的结果。这里面Runge-Kutta迭代部分是关键。Runge-Kutta迭代部分又由4个子过程组成，这4个子过程具有相似性，因此本文着重介绍单个Runge-Kutta子迭代步的流程，该流程如下图所示：
+
 
 \section{结果分析}
 
