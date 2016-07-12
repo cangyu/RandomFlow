@@ -1,6 +1,7 @@
 \documentclass[UTF8]{ctexart}
 \usepackage{graphicx}
 \usepackage{subfigure}
+\usepackage{float}
 \usepackage{amsmath}
 \usepackage{geometry}
 \usepackage{enumerate}
@@ -10,6 +11,7 @@
 \usepackage{color}
 \usepackage{xcolor}
 \usepackage{titletoc}
+\usepackage{grffile}
 
 \lstset{language=C++}
 \lstset{breaklines}%这条命令可以让LaTeX自动将长的代码行换行排版
@@ -308,9 +310,9 @@ public:
 	vector<double> physicalVar;//rho,u,v,p
 	vector<double> pre_physicalVar;
 	double localTimeStep;
-	vector<double> Q;//cell的对流通量
-	vector<double> D;//cell的耗散通量
-	vector<double> ddw;//守恒量w_next的Laplace
+	vector<double> Q;//单元的对流通量
+	vector<double> D;//单元的耗散通量
+	vector<double> ddw;//守恒量的Laplace
 
 	void updatePrevRecord();
 	double getDensity() const;
@@ -334,14 +336,14 @@ public:
 	int leftCell, rightCell;
 	double len;
 	vector<double> delta;
-	vector<double> delta_n;//单位外法向量(右手)
+	vector<double> delta_n;//单位外法向量
 	vector<double> w_av;//两边单元的物理量的平均
 	vector<double> physicalVar;//边上的物理量：rho,u,v,p
 	double c;//当地声速
 	double Z;//用于辅助计算
 	vector<double> convective_flux;//该边上的对流通量
-	vector<double> w_diff;//两边单元物理量之差(右-左)，没有右则不算
-	double ScalingFactor;//谱半径*边长+fabs(Z)
+	vector<double> w_diff;//两边单元物理量之差，没有右则不算
+	double ScalingFactor;
 	double v;//激波探测器
 	double eps2, eps4;//流场探测器
 	vector<double> d2, d4;//components of the dissipation_flux
@@ -349,9 +351,9 @@ public:
 	Point getMidPoint() const;//取得中点
 	void calcBasicVariables();//计算该边上的w_av，根据不同类型做不同处理
 	void calcConvection();//计算该边上的对流通量Q
-	void addConvectionToAdjcentCell();//将该边上的对流通量Q累加到相关联的cell
+	void addConvectionToAdjcentCell();//将该边上的对流通量累加到相关联的单元
 	void calc_d4();//计算d4
-	void addDissipationToAdjcentCell();//将该边上的耗散通量D累加到相关联的cell
+	void addDissipationToAdjcentCell();//将该边上的耗散通量累加到相关联的单元
 };
 \end{lstlisting}
 
@@ -360,17 +362,283 @@ public:
 \indent 初始化的过程中提示用户输入来流数据，如马赫数、攻角、静压和密度等物理量，然后构造格式化的输出文件并读入网格信息。\\
 \indent 输出阶段则将最终流场结果按照Tecplot的数据格式要求进行输出，同时计算翼型上下表面的压力分布，并输出到相应的文件中。\\
 \indent 时间推进过程是本算法的核心所在。在每个时间步中先进行预处理，然后做Runge-Kutta迭代，最后输出当前时间步计算得到的结果。这里面Runge-Kutta迭代部分是关键。Runge-Kutta迭代部分又由4个子过程组成，这4个子过程具有相似性，因此本文着重介绍单个Runge-Kutta子迭代步的流程，该流程如下图所示：
-
+\begin{figure}[htbp]\centering
+\includegraphics[width=5.5cm,height=6cm]{../data/runge_kutta_sub.png}
+\caption{Runge-Kutta子迭代步流程}
+\end{figure}
 
 \section{结果分析}
 
 \subsection{Ma=0.3}
+来流迎角为$0^\circ$时得到的结果如下图所示。
+\begin{figure}[htbp]\centering
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_0_flowfield.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_0_Cp.png}
+  \end{minipage}
 
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_0_cl_cd.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_0_residual.png}
+  \end{minipage}
+  \caption{$Ma=0.3,\alpha=0^\circ$翼型周围的流场、翼型压力分布、气动力系数与残差}
+\end{figure}
+
+\indent 由于来流和翼型都是对称的，因此上下流场也对称，翼型上不存在压差，故没有升力。\\
+\indent 来流迎角为$3^\circ$时得到的结果如下图所示。从图中可见当来流有迎角时，翼型上下表面产生压差。虽然计算迭代的过程中存在波动，但总体上趋于收敛。\clearpage
+\begin{figure}[htbp]\centering
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_3_flowfield.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_3_Cp.png}
+  \end{minipage}
+
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_3_cl_cd.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_3_residual.png}
+  \end{minipage}
+  \caption{$Ma=0.3,\alpha=3^\circ$翼型周围的流场、翼型压力分布、气动力系数与残差}
+\end{figure}
+
+\indent 来流迎角为$6^\circ$时得到的结果如下图所示。
+\begin{figure}[H]\centering
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_6_flowfield.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_6_Cp.png}
+  \end{minipage}
+
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_6_cl_cd.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_6_residual.png}
+  \end{minipage}
+  \caption{$Ma=0.3,\alpha=6^\circ$翼型周围的流场、翼型压力分布、气动力系数与残差}
+\end{figure}
+
+\indent 可见当来流迎角进一步增大时，CL也随之增大。$k^{(2)},k^{(4)}$的取值偏小，导致迭代过程中存在明显波动。
+\clearpage
+
+\indent 来流迎角为$9^\circ$时得到的结果如下所示。可见升力系数随着迎角的增大而增加，符合已知实验结果。
+\begin{figure}[htbp]\centering
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_9_flowfield.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_9_Cp.png}
+  \end{minipage}
+
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_9_cl_cd.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.3_9_residual.png}
+  \end{minipage}
+  \caption{$Ma=0.3,\alpha=9^\circ$翼型周围的流场、翼型压力分布、气动力系数与残差}
+\end{figure}
 \subsection{Ma=0.8}
+来流迎角为$0^\circ$时得到的结果如下图所示。由于来流和翼型都是对称的，因此上下流场也对称，翼型上不存在压差，故没有升力。但计算过程中有较大波动，体现了跨音速附近的不稳定性。
+\begin{figure}[H]\centering
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4cm,width=4.7cm]{../pic/0.8_0_flowfield.png}
+  \end{minipage}%
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4cm,width=4.7cm]{../pic/0.8_0_Cp.png}
+  \end{minipage}
+
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4cm,width=4.7cm]{../pic/0.8_0_cl_cd.png}
+  \end{minipage}%
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4cm,width=4.7cm]{../pic/0.8_0_residual.png}
+  \end{minipage}
+  \caption{$Ma=0.8,\alpha=0^\circ$翼型周围的流场、翼型压力分布、气动力系数与残差}
+\end{figure}
+
+\indent 来流迎角为$3^\circ$时得到的结果如下图所示。从压力分布图上可以看出在上表面中部存在一道激波。
+\begin{figure}[htbp]\centering
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.8_3_flowfield.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.8_3_Cp.png}
+  \end{minipage}
+
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.8_3_cl_cd.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.8_3_residual.png}
+  \end{minipage}
+  \caption{$Ma=0.8,\alpha=3^\circ$翼型周围的流场、翼型压力分布、气动力系数与残差}
+\end{figure}
+
+\indent 来流迎角为$6^\circ$时得到的结果如下图所示。随着迎角的增大，激波也随之增强。
+\begin{figure}[H]\centering
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.8_6_flowfield.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.8_6_Cp.png}
+  \end{minipage}
+
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.8_6_cl_cd.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/0.8_6_residual.png}
+  \end{minipage}
+  \caption{$Ma=0.8,\alpha=6^\circ$翼型周围的流场、翼型压力分布、气动力系数与残差}
+\end{figure}
+
+\indent 来流迎角为$9^\circ$时得到的结果如下图所示。流动规律与迎角为$6^\circ$时相似。
+\begin{figure}[htbp]\centering
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4.5cm,width=4.5cm]{../pic/0.8_9_flowfield.png}
+  \end{minipage}%
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4.5cm,width=4.5cm]{../pic/0.8_9_Cp.png}
+  \end{minipage}
+
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4.5cm,width=4.5cm]{../pic/0.8_9_cl_cd.png}
+  \end{minipage}%
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4.5cm,width=4.5cm]{../pic/0.8_9_residual.png}
+  \end{minipage}
+  \caption{$Ma=0.8,\alpha=9^\circ$翼型周围的流场、翼型压力分布、气动力系数与残差}
+\end{figure}
 
 \subsection{Ma=1.2}
+来流迎角为$0^\circ$时得到的结果如下图所示。由于来流和翼型都是对称的，因此上下流场也对称，翼型上不存在压差，故没有升力,但由于存在激波，阻力不为0。
+\begin{figure}[H]\centering
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4.5cm,width=4.5cm]{../pic/1.2_0_flowfield.png}
+  \end{minipage}%
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4.5cm,width=4.5cm]{../pic/1.2_0_Cp.png}
+  \end{minipage}
 
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4.5cm,width=4.5cm]{../pic/1.2_0_cl_cd.png}
+  \end{minipage}%
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4.5cm,width=4.5cm]{../pic/1.2_0_residual.png}
+  \end{minipage}
+  \caption{$Ma=1.2,\alpha=0^\circ$翼型周围的流场、翼型压力分布、气动力系数与残差}
+\end{figure}
+
+\indent 来流迎角为$3^\circ$时得到的结果如下图所示。由于存在迎角和激波，升力和阻力均不为0。计算过程较为平滑。
+\begin{figure}[htbp]\centering
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4.5cm,width=4.5cm]{../pic/1.2_3_flowfield.png}
+  \end{minipage}%
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4.5cm,width=4.5cm]{../pic/1.2_3_Cp.png}
+  \end{minipage}
+
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4.5cm,width=4.5cm]{../pic/1.2_3_cl_cd.png}
+  \end{minipage}%
+  \begin{minipage}{5cm}
+    \centering
+    \includegraphics[height=4.5cm,width=4.5cm]{../pic/1.2_3_residual.png}
+  \end{minipage}
+  \caption{$Ma=1.2,\alpha=3^\circ$翼型周围的流场、翼型压力分布、气动力系数与残差}
+\end{figure}
+
+\indent 来流迎角为$6^\circ$时得到的结果如下所示。计算得出的升力系数与经验公式的结果相吻合。
+\begin{figure}[H]\centering
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/1.2_6_flowfield.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/1.2_6_Cp.png}
+  \end{minipage}
+
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/1.2_6_cl_cd.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/1.2_6_residual.png}
+  \end{minipage}
+  \caption{$Ma=1.2,\alpha=6^\circ$翼型周围的流场、翼型压力分布、气动力系数与残差}
+\end{figure}
+
+\indent 来流迎角为$9^\circ$时得到的结果如下图所示。可见在超音速时计算结果也符合实际。
+\begin{figure}[H]\centering
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/1.2_9_flowfield.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/1.2_9_Cp.png}
+  \end{minipage}
+
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/1.2_9_cl_cd.png}
+  \end{minipage}%
+  \begin{minipage}{5.5cm}
+    \centering
+    \includegraphics[height=5cm,width=5cm]{../pic/1.2_9_residual.png}
+  \end{minipage}
+  \caption{$Ma=1.2,\alpha=9^\circ$翼型周围的流场、翼型压力分布、气动力系数与残差}
+\end{figure}
 \section{总结}
-
+本文使用了经典的有限体积方法，基于Jameson中心格式求解了二维无粘流动的Euler方程。给出了在低速、跨音速、超音速三种情况下的计算仿真结果。结果表明在加入人工粘性项后，数值计算可以有效收敛，并得到与实验相符合的结果。但是这一结果的取得与给定的人工粘性项系数有较大关系，若人工耗散项较小则会出现震荡现象，而人工耗散系数的选择还是依靠经验的，这也是CFD计算的局限性。Jameson格式在处理空间离散上比较简便，编程实现也比较容易，是一种比较可行的方法。
 
 \end{document}
