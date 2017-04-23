@@ -24,8 +24,7 @@ In this project, I wrote a short program to calculate the displacement and stres
 ## Unsteady Aerodynamics and Separated Flow(F012004, Spring 2016)
 Final experiment, lectured by Prof. Zhi-liang Lu and Prof. Da Huang.  
 In this experiment, I calculated the unsteady aerodynamics when the model was in a large scale motion with high rate. The program was based on CGAL.  
-The results indicated the hysteresis effect of the unsteady aerodynamics examined in this experiment, and the estimation was consistent with tested data.  
-![case1](https://github.com/cangyu/RandomFlow/blob/master/Unsteady%20Aerodynamics%20and%20Separated%20Flow/results/case1.png)
+The results indicated the ___hysteresis___ effect of the unsteady aerodynamics examined in this experiment, and the estimation was consistent with tested data.
 
 ## Multi-objective Optimization in Fluid Mechanics(F012005, Spring 2016)
 Final project, lectured by Prof. Hong-quan Chen.  
